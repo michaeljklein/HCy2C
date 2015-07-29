@@ -14,6 +14,9 @@ import Text.Regex
 --      write a 'trim output' C function (should be easy to make a general one) and add both that and the rem0s function to the end of the program.
 --              note: trim before rem0ing
 --
+--      Warning: no synopsis given. You should edit the .cabal file and add one.
+--      You may want to edit the .cabal file and add a Description field.
+--
 --      profile!:
 --              consider whether to optimize r() further
 --              consider rolling my own 'sprinter' (should be a peice of cake, but maybe not worth it)

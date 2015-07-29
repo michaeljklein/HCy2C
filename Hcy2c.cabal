@@ -13,10 +13,10 @@ name:                Hcy2c
 version:             0.1.0.0
 
 -- A short (one-line) description of the package.
--- synopsis:            
+-- synopsis: A program to generate C code for finding all directed cycles in a graph and finding the maximally cyclic orientations
 
 -- A longer description of the package.
--- description:         
+-- description:
 
 -- The license under which the package is released.
 license:             AllRightsReserved
