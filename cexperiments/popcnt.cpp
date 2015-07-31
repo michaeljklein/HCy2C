@@ -914,44 +914,44 @@ int main()
   benchmark<unsigned>(popcount_lauradoux,   "Lauradoux");
 
 #if defined(__GNUC__) && defined(__SSE2__)
-  benchmark<unsigned>(popcount_sse2_8bit,   "SSE2 8-bit");
-  benchmark<unsigned>(popcount_sse2_16bit,  "SSE2 16-bit");
-  benchmark<unsigned>(popcount_sse2_32bit,  "SSE2 32-bit");
+  benchmark<unsigned>(popcount_sse2_8bit,   "SSE2_8-bit");
+  benchmark<unsigned>(popcount_sse2_16bit,  "SSE2_16-bit");
+  benchmark<unsigned>(popcount_sse2_32bit,  "SSE2_32-bit");
 #else
-  std::cout << "Skipping SSE2 timings; not compiled for that architecture" << std::endl;
+//  std::cout << "Skipping SSE2 timings; not compiled for that architecture" << std::endl;
 #endif
 
 #if defined(__GNUC__) && defined(__SSSE3__)
   benchmark<unsigned>(popcount_ssse3,       "SSSE3");
 #else
   // try compiling with -mssse3
-  std::cout << "Skipping SSSE3 timing; not compiled for that architecture." << std::endl;
+//  std::cout << "Skipping SSSE3 timing; not compiled for that architecture." << std::endl;
 #endif
 
-  benchmark<unsigned>(popcount_lut16,       "16-bit LUT");
-  benchmark<unsigned>(popcount_lut8,        "8-bit LUT");
+  benchmark<unsigned>(popcount_lut16,       "16-bit_LUT");
+  benchmark<unsigned>(popcount_lut8,        "8-bit_LUT");
 
 #if defined(__GNUC__)
-  benchmark<unsigned>(popcount_gcc,         "gcc popcount");
-  benchmark<uint64_t>(popcountll_gcc,       "gcc popcountll");
+  benchmark<unsigned>(popcount_gcc,         "gcc_popcount");
+  benchmark<uint64_t>(popcountll_gcc,       "gcc_popcountll");
 #else
-  std::cout << "Skipping builtin popcount timings; not compiled with GCC." << std::endl;
+//  std::cout << "Skipping builtin popcount timings; not compiled with GCC." << std::endl;
 #endif
 
 
-  benchmark<unsigned>(popcount_fbsd1,       "FreeBSD version 1");
-  benchmark<unsigned>(popcount_fbsd2,       "FreeBSD version 2");
-  benchmark<uint64_t>(popcount_wikipedia_2, "Wikipedia #2");
-  benchmark<uint64_t>(popcount_wikipedia_3, "Wikipedia #3");
-  benchmark<unsigned>(popcount_hakmem_169,  "HAKMEM 169/X11");
+  benchmark<unsigned>(popcount_fbsd1,       "FreeBSD_version_1");
+  benchmark<unsigned>(popcount_fbsd2,       "FreeBSD_version_2");
+  benchmark<uint64_t>(popcount_wikipedia_2, "Wikipedia_#2");
+  benchmark<uint64_t>(popcount_wikipedia_3, "Wikipedia_#3");
+  benchmark<unsigned>(popcount_hakmem_169,  "HAKMEM_169/X11");
   benchmark<unsigned>(popcount_naive,       "naive");
   benchmark<unsigned>(popcount_wegner,      "Wegner/Kernigan");
   benchmark<unsigned>(popcount_anderson,    "Anderson");
 #if defined(__GNUC__)
-  benchmark<char>    (popcount_roladc8,     "8x shift and add");
-  benchmark<unsigned>(popcount_roladc32,    "32x shift and add");
+  benchmark<char>    (popcount_roladc8,     "8x_shift_and_add");
+  benchmark<unsigned>(popcount_roladc32,    "32x_shift_and_add");
 #else
-  std::cout << "Skipping slow gcc/assembly timings; not compiled with GCC." << std::endl;
+//  std::cout << "Skipping slow gcc/assembly timings; not compiled with GCC." << std::endl;
 #endif
 
   return 0;

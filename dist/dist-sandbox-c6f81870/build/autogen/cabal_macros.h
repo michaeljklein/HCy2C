@@ -7,6 +7,20 @@
   (major1) == 4 && (major2) <  7 || \
   (major1) == 4 && (major2) == 7 && (minor) <= 0)
 
+/* package regex-compat-0.95.1 */
+#define VERSION_regex_compat "0.95.1"
+#define MIN_VERSION_regex_compat(major1,major2,minor) (\
+  (major1) <  0 || \
+  (major1) == 0 && (major2) <  95 || \
+  (major1) == 0 && (major2) == 95 && (minor) <= 1)
+
+/* package split-0.2.2 */
+#define VERSION_split "0.2.2"
+#define MIN_VERSION_split(major1,major2,minor) (\
+  (major1) <  0 || \
+  (major1) == 0 && (major2) <  2 || \
+  (major1) == 0 && (major2) == 2 && (minor) <= 2)
+
 /* tool alex-3.1.3 */
 #define TOOL_VERSION_alex "3.1.3"
 #define MIN_TOOL_VERSION_alex(major1,major2,minor) (\

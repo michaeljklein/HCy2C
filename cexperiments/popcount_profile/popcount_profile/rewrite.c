@@ -36,32 +36,40 @@ unsigned *buf;
 //    return cnt;
 //}
 
-unsigned * ull2buf(unsigned long long x){
-    unsigned * buf;
-    unsigned y[8];
-    unsigned long long z = x;
-    for (unsigned int i = 0; i ^ 8; i++) {
-        y[i] = z & 255;
-        z >>= 8;
-    }
+//#include <stdint.h> // for int32_t, int64_t
+//
+//union ull{
+//    unsigned long long big;
+//    struct {
+//        unsigned int a;
+//        unsigned int b;
+//        unsigned int c;
+//        unsigned int d;
+//    };
+//};
+//
+//union ull x;
+//x.big = 18446744073709551615;
 
-    buf = y;
-    return buf;
+
+unsigned * ull2buf(unsigned long long x){ //takes ~1.1476 picoseconds on 64bit 2.5GHZ Macbook Pro, gcc O3",
+unsigned * buf;
+unsigned y[8];
+unsigned long long z = x;
+y[0] = z & 65535; //16 ones
+z >>= 16;
+y[1] = z & 65535;
+z >>= 16;
+y[2] = z & 65535;
+z >>= 16;
+y[3] = z & 65535;
+
+buf = y;
+return buf;
 }
 
-static inline int popcount_fbsd1(unsigned long long x) //unsigned *buf)
+static inline int popcount_fbsd1(unsigned *buf, int n)
 {
-    unsigned * buf;
-    unsigned y[8];
-    unsigned long long z = x;
-    for (unsigned int i = 0; i ^ 8; i++) {
-        y[i] = z & 255;
-        z >>= 8;
-    }
-    
-    buf = y;
-    int n = 8;
-    
     int cnt=0;
     do {
         unsigned m = *buf++;
@@ -74,6 +82,10 @@ static inline int popcount_fbsd1(unsigned long long x) //unsigned *buf)
     } while(--n);
     return cnt;
 }
+
+//int counter(unsigned long long x) {
+//    return popcount_fbsd1(ull2buf(x), 4);
+//}
 
 static inline int popcount_fbsd2(unsigned *buf, int n)
 {
@@ -88,6 +100,7 @@ static inline int popcount_fbsd2(unsigned *buf, int n)
     } while(--n);
     return cnt;
 }
+//popcount_fbsd2(ull2buf(x),4)
 
 static inline int popcount_wikipedia_2(uint64_t *buf, int n) {
     int cnt=0;
@@ -105,7 +118,7 @@ static inline int popcount_wikipedia_2(uint64_t *buf, int n) {
     } while (--n);
     return cnt;
 }
-
+//popcount_wikipedia_2(ull2buf(x),1)
 
 static inline int popcount_wikipedia_3(uint64_t *buf, int n) {
     int cnt=0;
@@ -120,7 +133,7 @@ static inline int popcount_wikipedia_3(uint64_t *buf, int n) {
     } while (--n);
     return cnt;
 }
-
+//popcount_wikipedia_3(ull2buf(x),1)
 
 static inline int popcount_gcc(unsigned *buf, int n) {
     int cnt = 0;
@@ -134,6 +147,7 @@ static inline int popcount_gcc(unsigned *buf, int n) {
     }
     return cnt;
 }
+//popcount_gcc(ull2buf(x),4)
 
 static inline int popcountll_gcc(uint64_t *buf, int n) {
     int cnt = 0;
@@ -147,6 +161,7 @@ static inline int popcountll_gcc(uint64_t *buf, int n) {
     }
     return cnt;
 }
+//popcountll_gcc(ull2buf(x),1)
 
 static inline int popcount_wegner(unsigned *buf, int n) {
     int cnt=0;
@@ -161,6 +176,7 @@ static inline int popcount_wegner(unsigned *buf, int n) {
     }
     return cnt;
 }
+//popcount_wegner(ull2buf(x),4)
 
 static inline int popcount_anderson(unsigned *buf, int n) {
     int cnt=0;
@@ -174,6 +190,7 @@ static inline int popcount_anderson(unsigned *buf, int n) {
     }
     return cnt;
 }
+//popcount_anderson(ull2buf(x),4)
 
 static inline int popcount_hakmem_169(unsigned *buf, int n) {
     int cnt=0;
@@ -187,7 +204,11 @@ static inline int popcount_hakmem_169(unsigned *buf, int n) {
     }
     return cnt;
 }
+//popcount_hakmem_169(ull2buf(x),4)
 
+#if !defined(__GNUC__)
+#error gcc required.
+#endif
 #if defined(__GNUC__)
 #define ROLADC8 __asm__("rolb %%al; "\
 "adcl $0,%1;": "=a"(c), "=r"(cnt) : "0"(c), "1"(cnt))
@@ -200,6 +221,7 @@ static inline int popcount_roladc8(char *buf, int n)
     } while(--n);
     return cnt;
 }
+//popcount_roladc8(ull2buf(x),8)
 
 #define ROLADC32 __asm__("roll %0; "\
 "adcl $0,%1;": "=r"(c), "=r"(cnt) : "0"(c), "1"(cnt))
@@ -215,6 +237,7 @@ static inline int popcount_roladc32(unsigned *buf, int n)
     } while(--n);
     return cnt;
 }
+//popcount_roladc32(ull2buf(x),4)
 #endif /* defined(__GNUC__) */
 
 #define FULL_ADD(c1, c0, w0, w1, s1, s2) w1 = s1; c0 = w0; w0 &= w1; \
@@ -259,6 +282,7 @@ static inline int popcount_7words(unsigned *buf, int n) {
     }
     return cnt + popcount_fbsd2(buf+i, n-i);
 }
+//popcount_7words(ull2buf(x),4)
 
 static inline int merging2(const unsigned *data)
 {
@@ -318,6 +342,7 @@ static inline int popcount_24words(unsigned *buf, int n) {
     cnt += popcount_fbsd2(buf+i, n-i);
     return cnt;
 }
+//popcount_24words(ull2buf(x),4)
 
 static inline int popcount_lauradoux(unsigned *buf, int n) {
     const uint64_t* data = (uint64_t*) buf;
@@ -368,7 +393,12 @@ static inline int popcount_lauradoux(unsigned *buf, int n) {
     }
     return bitCount;
 }
+//popcount_lauradox(ull2buf(x),4)
 
+
+#if !(defined(__GNUC__) && defined(__SSE2__))
+#error gcc and sse2 required.
+#endif
 #if defined(__GNUC__) && defined(__SSE2__)
 #include <emmintrin.h>
 
@@ -452,7 +482,7 @@ static inline int popcount_sse2_8bit(unsigned* buf,int n) {
     _mm_store_ss((float*)&count,(__m128)(_mm_add_epi32(count32,_mm_shuffle_epi32(count32,_MM_SHUFFLE(2,2,2,2)))));
     return count;
 }
-
+//popcount_sse2_8bit(ull2buf(x),4)
 
 static inline __m128i reduce_16_to_32(__m128i v) {
     // Reduce 8*16->4*32
@@ -534,6 +564,7 @@ static inline int popcount_sse2_16bit(unsigned* buf,int n) {
     _mm_store_si128((__m128i*)tmp,count32);
     return tmp[0]+tmp[1]+tmp[2]+tmp[3];
 }
+//popcount_sse2_16bit(ull2buf(x),4)
 
 int popcount_sse2_32bit(unsigned* buf, int n) {
     __m128i* vbuf = (__m128i*)buf;
@@ -605,8 +636,12 @@ int popcount_sse2_32bit(unsigned* buf, int n) {
     _mm_store_si128((__m128i*)tmp,total);
     return tmp[0]+tmp[1]+tmp[2]+tmp[3];
 }
+//popcount_sse2_32bit(ull2buf(x),4)
 #endif
 
+#if !(defined(__GNUC__) && defined(__SSSE3__))
+#error gcc required.
+#endif
 #if defined(__GNUC__) && defined(__SSSE3__)
 #include <tmmintrin.h>
 
@@ -670,9 +705,16 @@ inline int popcount_ssse3(unsigned* buf,int n) {
     _mm_store_ss((float*)&count,(__m128)(_mm_add_epi32(count32,_mm_shuffle_epi32(count32,_MM_SHUFFLE(2,2,2,2)))));
     return count;
 }
+//popcount_ssse3(ull2buf(x),4)
 
 #endif
+unsigned long long w = 18446744073709551615LLU;
+
+int counter(unsigned long long x){
+    return popcount_wikipedia_2(&x, 1);
+}
 
 int main(){
-    printf("%d\n", popcount_fbsd1(18446744073709551615LLU));
+    printf("%d\n", popcount_fbsd1(ull2buf(18446744073709551615LLU), 4));
+    printf("%d\n", counter(w));
 }
