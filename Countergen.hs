@@ -1,6 +1,11 @@
-import System.Directory
+import Control.Monad
+--import System.Directory
 import System.IO
 import System.Process
+import Prelude hiding (catch)
+import System.Directory
+import Control.Exception
+import System.IO.Error hiding (catch)
 
 --TODO: add arg for initialization of counter extras (ex, in main for lut8/16)
 
@@ -14,36 +19,37 @@ import System.Process
 --        return popcount_wikipedia_2(&x, 1);
 --  }
 
-makeCounterPipe :: [Char] -> [Char] -> [Char]
+makeCounterPipe :: [Char] -> [Char] -> [[Char]]
 makeCounterPipe fstr bits = if bits == "16"
-                        then unlines $ convert ++ ["int counter(unsigned long long x) {",
-                                                 "    return " ++ fstr ++ "(ull2buf(x), 4);",
-                                                 "}"]
-                        else unlines ["int counter(unsigned long long x){",
-                                     "    return " ++ fstr ++ "(&x, 1);",
-                              "}"]
+                        then convert ++ ["int counter(unsigned long long x) {",
+                                       "    return " ++ fstr ++ "(ull2buf(x), 4);",
+                                       "}"]
+                        else ["int counter(unsigned long long x){",
+                             "    return " ++ fstr ++ "(&x, 1);",
+                             "}"]
 
-elemIndexS :: Integral a => [Char] -> [([[Char]], [[Char]])] -> a
-elemIndexS x l = max $ zipWith (\e i -> if (head $ fst e) == x then i else 0) l [0..]
+elemIndexS :: [Char] -> [([[Char]], [[Char]])] -> Int
+elemIndexS x l = maximum $ zipWith (\e i -> if (head $ fst e) == x then i else 0) l [0..]
 
 makeCounter :: [Char] -> [Char]
 makeCounter pname = if elem pname (map (\x -> head $ fst x) cdict)
-                    then (snd tup) ++ (makeCounterPipe (head $ fst tup) (head $ tail $ fst tup))
+                    then (unlines $ snd tup) ++ (unlines (makeCounterPipe (head $ fst tup) (head $ tail $ fst tup)))
                     else "[NO POPCOUNT WITH GIVEN NAME FOUND]"
   where
       tup = cdict !! (elemIndexS pname cdict)
 
 lookupCounter :: [Char] -> [Char]
-lookupCounter name = if filtered_dict == [] then "" else head filtered_dict
+lookupCounter name = if filtered_dict == [] then "" else head $ fst $ head filtered_dict
                 where
-                  filtered_dict = filter (\s -> name == last $ fst s) cdict
+                  filtered_dict :: [([[Char]],[[Char]])]
+                  filtered_dict = filter (\s -> name == (last $ fst s)) cdict
 
 testCounterSimple :: Int -> IO ()
 testCounterSimple n = do
   putStr ((head $ fst (cdict !! n)) ++ ":\n")
   testh <- openFile ((head $ fst (cdict !! n)) ++ ".c") WriteMode
   hPutStr testh "include <stdio.h>\n"
-  counter <- makeCounter (head $ fst (cdict !! n))
+  let counter = makeCounter (head $ fst (cdict !! n))
   hPutStr testh counter
   hPutStr testh "int main(){\n    printf(\"%d\\n\", counter(18446744073709551615LLU));\n}"
   hClose testh
@@ -53,33 +59,57 @@ testCounterSimple n = do
   putStr run_results
   putStr $ show $ run_results == "64"
 
-putBestCounter :: IO Handle -> IO ()
-putBestCounter filehandle = do
-    if doesFileExist ".best_counter"
-        then do
-            best <- readFile "best_counter"
---            best <- hGetLine settings
---            hclose settings
-            counter_name <- lookupCounter best
-            counter <- makeCounter counter_name
-            hPutStr filehandle counter
-        else do
-            comp_results <- readProcess "g++" ["popcnt.cpp", "-O3", "-o", "popcnt"] []
-            putStr comp_results
-            raw_string <- readProcess "./popcnt" [] []
-            putStr raw_string
-            pair_string <- map (take 2) $ filter (\l -> "32511665" == last l) $ map words $ lines raw_string
-            pairs <- zip (map head raw_string) (map (\x -> read x :: Integer) $ map last raw_string)
-            best <- fst $ head $ filter (\x -> (maximum $ map snd pairs) == snd x) pairs
-            settings <- openFile "best_counter" WriteMode
-            settings_results <- hPutStr settings best
-            hClose settings
-            counter_name <- lookupCounter best
-            counter <- makeCounter counter_name
-            hPutStr filehandle counter
+-- putBestCounter :: IO Handle -> IO ()
+-- putBestCounter filehandle = do
+-- --     doesFileExist "best_counter"
+--     when (doesFileExist "best_counter") do
+--             best <- readFile "best_counter"
+-- --            best <- hGetLine settings
+-- --            hclose settings
+--             counter_name <- lookupCounter best
+--             counter <- makeCounter counter_name
+--             hPutStr filehandle counter
+--     when (not $ doesFileExist "best_counter") do
+--             comp_results <- readProcess "g++" ["popcnt.cpp", "-O3", "-o", "popcnt"] []
+--             putStr comp_results
+--             raw_string <- readProcess "./popcnt" [] []
+--             putStr raw_string
+--             pair_string <- map (take 2) $ filter (\l -> "32511665" == last l) $ map words $ lines raw_string
+--             pairs <- zip (map head raw_string) (map (\x -> read x :: Integer) $ map last raw_string)
+--             best <- fst $ head $ filter (\x -> (maximum $ map snd pairs) == snd x) pairs
+--             settings <- openFile "best_counter" WriteMode
+--             settings_results <- hPutStr settings best
+--             hClose settings
+--             counter_name <- lookupCounter best
+--             counter <- makeCounter counter_name
+--             hPutStr filehandle counter
 
+findBestCounter :: IO [Char]
+findBestCounter = do
+  let comp_results = readProcess "g++" ["popcnt.cpp", "-O3", "-o", "popcnt"] []
+--  putStr comp_results
+  raw_string <- readProcess "./popcnt" [] []
+--  putStr raw_string
+  let pair_string = map (take 2) $ filter (\l -> "32511665" == last l) $ map words $ lines $ liftM (\x -> x) raw_string
+  let pairs = zip (map head pair_string) (map (\x -> read x :: Integer) $ map last pair_string)
+  let best = fst $ head $ filter (\x -> (maximum $ map snd pairs) == snd x) pairs
+  settings <- openFile "best_counter" WriteMode
+  settings_results <- hPutStr settings best
+  hClose settings
+  return best
+
+putBestCounter filehandle = do
+--  best <- handle (\_ ->findBestCounter) (readFile "best_counter")
+  best <- catch (readFile "best_counter") handler --(\_ ->findBestCounter)
+  let counter =  makeCounter $ lookupCounter best
+  hPutStr filehandle counter
+    where
+      handler :: SomeException -> IO [Char]
+      handler _ = findBestCounter
+
+main :: IO ()
 main = do
-  map testCounterSimple [0..(length $ tail $ cdict)]
+  null <- mapM_ testCounterSimple [0..(length $ tail $ cdict)]
   putStr "Done."
 
 ------------------------------------------------------------------------------------------------
@@ -97,6 +127,7 @@ consts = ["#import <stdint.h>",
           "const uint64_t h01 = UINT64_C(0x0101010101010101); // the sum of 256 to the power of 0,1,2,3..."]
 
 --sse2s start with sse2b (begin) and end with sse2e (end)
+cdict :: [([[Char]], [[Char]])]
 cdict =[(["popcount_lut8",        "16", "8-bit_LUT"         ],    lut8),
         (["popcount_lut16",       "16", "16-bit_LUT"        ],    lut16),
         (["popcount_fbsd1",       "16", "FreeBSD_version_1" ],    fbsd1),
