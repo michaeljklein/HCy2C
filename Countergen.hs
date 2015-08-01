@@ -48,7 +48,7 @@ testCounterSimple :: Int -> IO ()
 testCounterSimple n = do
   putStr ((head $ fst (cdict !! n)) ++ ":\n")
   testh <- openFile ((head $ fst (cdict !! n)) ++ ".c") WriteMode
-  hPutStr testh "include <stdio.h>\n"
+  hPutStr testh "#include <stdio.h>\n"
   let counter = makeCounter (head $ fst (cdict !! n))
   hPutStr testh counter
   hPutStr testh "int main(){\n    printf(\"%d\\n\", counter(18446744073709551615LLU));\n}"
@@ -58,31 +58,6 @@ testCounterSimple n = do
   run_results <- readProcess ("./" ++ (head $ fst (cdict !! n))) [] []
   putStr run_results
   putStr $ show $ run_results == "64"
-
--- putBestCounter :: IO Handle -> IO ()
--- putBestCounter filehandle = do
--- --     doesFileExist "best_counter"
---     when (doesFileExist "best_counter") do
---             best <- readFile "best_counter"
--- --            best <- hGetLine settings
--- --            hclose settings
---             counter_name <- lookupCounter best
---             counter <- makeCounter counter_name
---             hPutStr filehandle counter
---     when (not $ doesFileExist "best_counter") do
---             comp_results <- readProcess "g++" ["popcnt.cpp", "-O3", "-o", "popcnt"] []
---             putStr comp_results
---             raw_string <- readProcess "./popcnt" [] []
---             putStr raw_string
---             pair_string <- map (take 2) $ filter (\l -> "32511665" == last l) $ map words $ lines raw_string
---             pairs <- zip (map head raw_string) (map (\x -> read x :: Integer) $ map last raw_string)
---             best <- fst $ head $ filter (\x -> (maximum $ map snd pairs) == snd x) pairs
---             settings <- openFile "best_counter" WriteMode
---             settings_results <- hPutStr settings best
---             hClose settings
---             counter_name <- lookupCounter best
---             counter <- makeCounter counter_name
---             hPutStr filehandle counter
 
 findBestCounter :: IO [Char]
 findBestCounter = do
@@ -128,8 +103,8 @@ consts = ["#import <stdint.h>",
 
 --sse2s start with sse2b (begin) and end with sse2e (end)
 cdict :: [([[Char]], [[Char]])]
-cdict =[(["popcount_lut8",        "16", "8-bit_LUT"         ],    lut8),
-        (["popcount_lut16",       "16", "16-bit_LUT"        ],    lut16),
+cdict =[--(["popcount_lut8",        "16", "8-bit_LUT"         ],    lut8),
+        --(["popcount_lut16",       "16", "16-bit_LUT"        ],    lut16),
         (["popcount_fbsd1",       "16", "FreeBSD_version_1" ],    fbsd1),
         (["popcount_fbsd2",       "16", "FreeBSD_version_2" ],    fbsd2),
         (["popcount_wikipedia_2", "64", "Wikipedia_#2"      ],    consts ++ wiki2),
@@ -170,7 +145,7 @@ lut8 =    ["unsigned char *lut;",
           "",
           "void init_lut(void)",
           "{",
-          "    lut = new unsigned char[65536];",
+          "    unsigned char lut[65536];",
           "    ",
           "    for (int i = 0; i < 65536; i++) {",
           "        int bit_count = 0;",
@@ -201,7 +176,7 @@ lut16 =   ["unsigned char *lut;",
           "",
           "void init_lut(void)",
           "{",
-          "    lut = new unsigned char[65536];",
+          "    unsigned char lut[65536];",
           "    ",
           "    for (int i = 0; i < 65536; i++) {",
           "        int bit_count = 0;",
