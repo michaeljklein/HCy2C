@@ -66,6 +66,25 @@ putBestCounter filehandle = do
     counter <- makeCounter counter_name
     hPutStr filehandle counter
 
+testCounterSimple :: Int -> IO ()
+testCounterSimple n = do
+  putStr ((head $ fst (cdict !! n)) ++ ":\n")
+  testh <- openFile ((head $ fst (cdict !! n)) ++ ".c") WriteMode
+  hPutStr testh "include <stdio.h>\n"
+  counter <- makeCounter (head $ fst (cdict !! n))
+  hPutStr testh counter
+  hPutStr testh "int main(){\n    printf(\"%d\\n\", counter(18446744073709551615LLU));\n}"
+  hClose testh
+  comp_results <- readProcess "gcc" [(head $ fst (cdict !! n)) ++ ".c", "-O3", "-o", head $ fst (cdict !! n)] []
+  putStr comp_results
+  run_results <- readProcess ("./" ++ (head $ fst (cdict !! n))) [] []
+  putStr run_results
+  putStr $ show $ run_results == "64"
+
+main = do
+  map testCounterSimple [0..(length $ tail $ cdict)]
+  putStr "Done."
+
 ------------------------------------------------------------------------------------------------
 --The following is only data:
 ------------------------------------------------------------------------------------------------
