@@ -17,9 +17,11 @@ int counter(unsigned long long x){
 }
 int main(){
     printf("%d\n", counter(18446744073709551615LLU));
-    int y=0;
-    for (unsigned long long i = 0; i < 10000000000; i++) {
-    y += counter(i);
+    int y;
+    for (unsigned long long i = 0; i < 100000000; i++) {
+        y = counter(i);
+    }
+    printf("%d\n", y);
 }
-printf("%d\n", y);
-}
+
+"int main(){\n    printf(\"%d\\n\", counter(18446744073709551615LLU));\n    int y;\n    for (unsigned long long i = 0; i < 100000000; i++) {\n    y = counter(i);\n}\nprintf(\"%d\\n\", y);\n}"

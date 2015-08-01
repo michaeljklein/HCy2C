@@ -1,15 +1,12 @@
 #include <stdio.h>
-#include <stdint.h>
-
-
-static inline int popcount_anderson(unsigned *buf, int n) {
+static inline int popcount_hakmem_169(unsigned *buf, int n) {
     int cnt=0;
-    uint64_t v;
+    unsigned tmp, w;
+    
     while (n--) {
-        v = *buf;
-        cnt += ((v & 0xfff) * 0x1001001001001ULL & 0x84210842108421ULL) % 0x1f;
-        cnt += (((v & 0xfff000) >> 12) * 0x1001001001001ULL & 0x84210842108421ULL) % 0x1f;
-        cnt += ((v >> 24) * 0x1001001001001ULL & 0x84210842108421ULL) % 0x1f;
+        w = *buf;
+        tmp = w - ((w >> 1) & 033333333333) - ((w >> 2) & 011111111111);
+        cnt += ((tmp + (tmp >> 3)) & 030707070707) % 63;
         buf++;
     }
     return cnt;
@@ -31,7 +28,7 @@ unsigned * ull2buf(unsigned long long x){ //takes ~1.1476 picoseconds on 64bit 2
 }
 
 int counter(unsigned long long x) {
-    return popcount_anderson(ull2buf(x), 4);
+    return popcount_hakmem_169(ull2buf(x), 4);
 }
 int main(){
     printf("%d\n", counter(18446744073709551615LLU));

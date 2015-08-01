@@ -877,6 +877,69 @@ int popcount_openmp(T *buf, int size, int (*popcount) (T*, int)) {
 }
 #endif
 
+//static inline int popcount_wikipedia_3(uint64_t *buf, int n) {
+//    int cnt=0;
+//    uint64_t x;
+//    do {
+//        x = *buf;
+//        x -= (x >> 1) & m1;             //put count of each 2 bits into those 2 bits
+//        x = (x & m2) + ((x >> 2) & m2); //put count of each 4 bits into those 4 bits
+//        x = (x + (x >> 4)) & m4;        //put count of each 8 bits into those 8 bits
+//        cnt += (x * h01)>>56;  //returns left 8 bits of x + (x<<8) + (x<<16) + (x<<24)+...
+//        buf++;
+//    } while (--n);
+//    return cnt;
+//}
+
+int popcount_jelinek1(uint64_t * buf, int n)
+{
+    int cnt = 0;
+    uint64_t i;
+    do {
+        i = *buf;
+        i = i - ((i >> 1) & 0x5555555555555555);
+        i = (i & 0x3333333333333333) + ((i >> 2) & 0x3333333333333333);
+        i = (i + (i >> 4)) & 0xF0F0F0F0F0F0F0F;
+        cnt += (i * 0x101010101010101) >> 56;
+        buf++;
+    } while (--n);
+    return cnt;
+}
+
+int popcount_jelinek2(uint64_t * buf, int n)
+{
+    int cnt = 0;
+    uint64_t i;
+    do {
+        i = *buf;
+        unsigned int i1 = i, i2 = i >> 32;
+        i1 = i1 - ((i1 >> 1) & 0x55555555);
+        i2 = i2 - ((i2 >> 1) & 0x55555555);
+        i1 = (i1 & 0x33333333) + ((i1 >> 2) & 0x33333333);
+        i2 = (i2 & 0x33333333) + ((i2 >> 2) & 0x33333333);
+        i1 = (i1 + (i1 >> 4)) & 0xF0F0F0F;
+        i2 = (i2 + (i2 >> 4)) & 0xF0F0F0F;
+        cnt += ((i1 + i2) * 0x1010101) >> 24;
+        buf++;
+    } while (--n);
+    return cnt;
+}
+
+int popcount_jelinek3(uint64_t * buf, int n)
+{
+    int cnt = 0;
+    uint64_t i;
+    do {
+        i = *buf;
+        i = i - ((i >> 1) & 0x5555555555555555);
+        i = (i & 0x3333333333333333) + ((i >> 2) & 0x3333333333333333);
+        i = (i + (i >> 4)) & 0xF0F0F0F0F0F0F0F;
+        cnt += ((((unsigned int) i) + (unsigned int) (i >> 32)) * 0x1010101) >> 24;
+        buf++;
+    } while (--n);
+    return cnt;
+}
+
 // benchmark a bit population count function
 template<typename T>
 void benchmark(int (*popcount)(T*, int), const std::string& label) {
@@ -909,47 +972,49 @@ int main()
   // initialize look up table for popcount_lut*
   init_lut();
 
-  benchmark<unsigned>(popcount_7words,      "Bitslice(7)");
-  benchmark<unsigned>(popcount_24words,     "Bitslice(24)");
-  benchmark<unsigned>(popcount_lauradoux,   "Lauradoux");
+//  benchmark<unsigned>(popcount_7words,      "Bitslice(7)");
+//  benchmark<unsigned>(popcount_24words,     "Bitslice(24)");
+//  benchmark<unsigned>(popcount_lauradoux,   "Lauradoux");
 
-#if defined(__GNUC__) && defined(__SSE2__)
-  benchmark<unsigned>(popcount_sse2_8bit,   "SSE2_8-bit");
-  benchmark<unsigned>(popcount_sse2_16bit,  "SSE2_16-bit");
-  benchmark<unsigned>(popcount_sse2_32bit,  "SSE2_32-bit");
-#else
-//  std::cout << "Skipping SSE2 timings; not compiled for that architecture" << std::endl;
-#endif
+//#if defined(__GNUC__) && defined(__SSE2__)
+//  benchmark<unsigned>(popcount_sse2_8bit,   "SSE2_8-bit");
+//  benchmark<unsigned>(popcount_sse2_16bit,  "SSE2_16-bit");
+//  benchmark<unsigned>(popcount_sse2_32bit,  "SSE2_32-bit");
+//#else
+////  std::cout << "Skipping SSE2 timings; not compiled for that architecture" << std::endl;
+//#endif
 
-#if defined(__GNUC__) && defined(__SSSE3__)
-  benchmark<unsigned>(popcount_ssse3,       "SSSE3");
-#else
-  // try compiling with -mssse3
-//  std::cout << "Skipping SSSE3 timing; not compiled for that architecture." << std::endl;
-#endif
+//#if defined(__GNUC__) && defined(__SSSE3__)
+//  benchmark<unsigned>(popcount_ssse3,       "SSSE3");
+//#else
+//  // try compiling with -mssse3
+////  std::cout << "Skipping SSSE3 timing; not compiled for that architecture." << std::endl;
+//#endif
 
-  benchmark<unsigned>(popcount_lut16,       "16-bit_LUT");
-  benchmark<unsigned>(popcount_lut8,        "8-bit_LUT");
+//  benchmark<unsigned>(popcount_lut16,       "16-bit_LUT");
+//  benchmark<unsigned>(popcount_lut8,        "8-bit_LUT");
 
 #if defined(__GNUC__)
-  benchmark<unsigned>(popcount_gcc,         "gcc_popcount");
+//  benchmark<unsigned>(popcount_gcc,         "gcc_popcount");
   benchmark<uint64_t>(popcountll_gcc,       "gcc_popcountll");
 #else
 //  std::cout << "Skipping builtin popcount timings; not compiled with GCC." << std::endl;
 #endif
 
-
-  benchmark<unsigned>(popcount_fbsd1,       "FreeBSD_version_1");
-  benchmark<unsigned>(popcount_fbsd2,       "FreeBSD_version_2");
+  benchmark<uint64_t>(popcount_jelinek1,     "Jelinek1");
+  benchmark<uint64_t>(popcount_jelinek2,     "Jelinek2");
+  benchmark<uint64_t>(popcount_jelinek3,     "Jelinek3");
+//  benchmark<unsigned>(popcount_fbsd1,       "FreeBSD_version_1");
+//  benchmark<unsigned>(popcount_fbsd2,       "FreeBSD_version_2");
   benchmark<uint64_t>(popcount_wikipedia_2, "Wikipedia_#2");
   benchmark<uint64_t>(popcount_wikipedia_3, "Wikipedia_#3");
-  benchmark<unsigned>(popcount_hakmem_169,  "HAKMEM_169/X11");
-  benchmark<unsigned>(popcount_naive,       "naive");
-  benchmark<unsigned>(popcount_wegner,      "Wegner/Kernigan");
-  benchmark<unsigned>(popcount_anderson,    "Anderson");
+//  benchmark<unsigned>(popcount_hakmem_169,  "HAKMEM_169/X11");
+//  benchmark<unsigned>(popcount_naive,       "naive");
+//  benchmark<unsigned>(popcount_wegner,      "Wegner/Kernigan");
+//  benchmark<unsigned>(popcount_anderson,    "Anderson");
 #if defined(__GNUC__)
-  benchmark<char>    (popcount_roladc8,     "8x_shift_and_add");
-  benchmark<unsigned>(popcount_roladc32,    "32x_shift_and_add");
+//  benchmark<char>    (popcount_roladc8,     "8x_shift_and_add");
+//  benchmark<unsigned>(popcount_roladc32,    "32x_shift_and_add");
 #else
 //  std::cout << "Skipping slow gcc/assembly timings; not compiled with GCC." << std::endl;
 #endif

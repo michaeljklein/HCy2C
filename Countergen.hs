@@ -9,6 +9,8 @@ import System.IO.Error hiding (catch)
 
 --TODO: add arg for initialization of counter extras (ex, in main for lut8/16)
 
+--NOTES: -O3 breaks almost everything :/
+
 -- makeCounterPip examples:
 -- (convert)
 --  int counter(unsigned long long x){
@@ -46,22 +48,25 @@ lookupCounter name = if filtered_dict == [] then "" else head $ fst $ head filte
 
 testCounterSimple :: Int -> IO ()
 testCounterSimple n = do
-  putStr ((head $ fst (cdict !! n)) ++ ":\n")
+  putStr ((head $ fst (cdict !! n)) ++ ":\n\n")
   testh <- openFile ((head $ fst (cdict !! n)) ++ ".c") WriteMode
   hPutStr testh "#include <stdio.h>\n"
   let counter = makeCounter (head $ fst (cdict !! n))
   hPutStr testh counter
-  hPutStr testh "int main(){\n    printf(\"%d\\n\", counter(18446744073709551615LLU));\n}"
+  -- hPutStr testh "int main(){\n    printf(\"%d\\n\", counter(18446744073709551615LLU));\n}"
+  hPutStr testh "int main(){\n    printf(\"%d\\n\", counter(18446744073709551615LLU));\n    int y=0;\n    for (unsigned long long i = 0; i < 10000000000; i++) {\n    y += counter(i);\n}\nprintf(\"%d\\n\", y);\n}"
   hClose testh
+--  putStr ("#include <stdio.h>\n" ++ counter ++ "int main(){\n    printf(\"%d\\n\", counter(18446744073709551615LLU));\n    int y=0;\n    for (unsigned long long i = 0; i < 1000000000; i++) {\n    y += counter(i);\n}\nprintf(\"%d\\n\", y);\n}")
   comp_results <- readProcess "gcc" [(head $ fst (cdict !! n)) ++ ".c", "-O3", "-o", head $ fst (cdict !! n)] []
   putStr comp_results
-  run_results <- readProcess ("./" ++ (head $ fst (cdict !! n))) [] []
+  run_results <- readProcess ("time") ["./" ++ (head $ fst (cdict !! n))] [] --[]
   putStr run_results
-  putStr $ show $ run_results == "64"
+  putStr $ show $ run_results == "64\n"
+  putStr "\n-------------------------------------------------------------------------------------------------------------------------------------------\n"
 
 findBestCounter :: IO [Char]
 findBestCounter = do
-  let comp_results = readProcess "g++" ["popcnt.cpp", "-O3", "-o", "popcnt"] []
+  let comp_results = readProcess "g++" ["popcnt.cpp", "-fno-strict-aliasing", "-o", "popcnt"] []
 --  putStr comp_results
   raw_string <- readProcess "./popcnt" [] []
 --  putStr raw_string
@@ -102,42 +107,47 @@ consts = ["#import <stdint.h>",
           "const uint64_t h01 = UINT64_C(0x0101010101010101); // the sum of 256 to the power of 0,1,2,3..."]
 
 --sse2s start with sse2b (begin) and end with sse2e (end)
+--popcounters removed without reason need to be ported to this case
 cdict :: [([[Char]], [[Char]])]
-cdict =[--(["popcount_lut8",        "16", "8-bit_LUT"         ],    lut8),
-        --(["popcount_lut16",       "16", "16-bit_LUT"        ],    lut16),
-        (["popcount_fbsd1",       "16", "FreeBSD_version_1" ],    fbsd1),
-        (["popcount_fbsd2",       "16", "FreeBSD_version_2" ],    fbsd2),
+cdict = [--(["popcount_lut8",        "16", "8-bit_LUT"         ],    lut8),
+         --(["popcount_lut16",       "16", "16-bit_LUT"        ],    lut16),
+        (["popcount_jelinek1",    "64", "Jelinek1"          ],    ["#include <stdint.h>\n\n"] ++ jel1),
+        (["popcount_jelinek2",    "64", "Jelinek2"          ],    ["#include <stdint.h>\n\n"] ++ jel2),
+        (["popcount_jelinek3",    "64", "Jelinek3"          ],    ["#include <stdint.h>\n\n"] ++ jel3),
+        --(["popcount_fbsd1",       "16", "FreeBSD_version_1" ],    fbsd1),
+        --(["popcount_fbsd2",       "16", "FreeBSD_version_2" ],    fbsd2),
         (["popcount_wikipedia_2", "64", "Wikipedia_#2"      ],    consts ++ wiki2),
         (["popcount_wikipedia_3", "64", "Wikipedia_#3"      ],    consts ++ wiki3),
-        (["popcount_gcc",         "16", "gcc_popcount"      ],    gcc),
-        (["popcountll_gcc",       "64", "gcc_popcountll"    ],    llgcc),
-        (["popcount_wegner",      "16", "Wegner//Kernigan"  ],    wegner),
-        (["popcount_anderson",    "16", "Anderson"          ],    ander),
-        (["popcount_hakmem_169",  "16", "HAKMEM_169//X11"   ],    hakmem),
-        (["popcount_roladc8",     "16", "8x_shift_and_add"  ],    rol8),
-        (["popcount_roladc32",    "16", "32x_shift_and_add" ],    rol32),
-        (["popcount_7words",      "16", "Bitslice(7)"       ],    fbsd2 ++ words7),
-        (["popcount_24words",     "16", "Bitslice(24)"      ],    words24),
-        (["popcount_lauradox",    "16", "Lauradox"          ],    laurad),
-        (["popcount_sse2_8bit",   "16", "SSE2_8-bit"        ],    sse2b ++ sse28  ++ sse2e),
-        (["popcount_sse2_16bit",  "16", "SSE2_16-bit"       ],    sse2b ++ sse216 ++ sse2e),
-        (["popcount_sse2_32bit",  "16", "SSE2_32-bit"       ],    sse2b ++ sse232 ++ sse2e),
-        (["popcount_ssse3",       "16", "SSSE3"             ],    ssse3)]
+        --(["popcount_gcc",         "16", "gcc_popcount"      ],    gcc),
+        (["popcountll_gcc",       "64", "gcc_popcountll"    ],    llgcc)]
+        --(["popcount_wegner",      "16", "Wegner//Kernigan"  ],    wegner),
+        --(["popcount_anderson",    "16", "Anderson"          ],    ["#include <stdint.h>\n\n"] ++ ander),
+        --(["popcount_hakmem_169",  "16", "HAKMEM_169//X11"   ],    hakmem),
+        --(["popcount_roladc8",     "16", "8x_shift_and_add"  ],    rol8), slow and broken
+        --(["popcount_roladc32",    "16", "32x_shift_and_add" ],    rol32)]
+        --(["popcount_7words",      "16", "Bitslice(7)"       ],    fbsd2 ++ words7),                 the following are unfit for single ULL
+        --(["popcount_24words",     "16", "Bitslice(24)"      ],    words24),
+        --(["popcount_lauradoux",    "16", "Lauradoux"          ],    laurad),
+        --(["popcount_sse2_8bit",   "16", "SSE2_8-bit"        ],    sse2b ++ sse28  ++ sse2e),        furthermore, the sse counters need 128 bits
+        --(["popcount_sse2_16bit",  "16", "SSE2_16-bit"       ],    sse2b ++ sse216 ++ sse2e),        (i.e., would have to largely rewrite both the counters
+        --(["popcount_sse2_32bit",  "16", "SSE2_32-bit"       ],    sse2b ++ sse232 ++ sse2e),         and original algorithm to see reasonable gains.)
+        --(["popcount_ssse3",       "16", "SSSE3"             ],    ssse3)]
 
-convert = ["unsigned * ull2buf(unsigned long long x){ //takes ~1.1476 picoseconds on 64bit 2.5GHZ Macbook Pro, gcc O3",
-           "unsigned * buf;",
-           "unsigned y[8];",
-           "unsigned long long z = x;",
-           "y[0] = z & 65535; //16 ones",
-           "z >>= 16;",
-           "y[1] = z & 65535;",
-           "z >>= 16;",
-           "y[2] = z & 65535;",
-           "z >>= 16;",
-           "y[3] = z & 65535;",
+--Note: the conversion and unpacking adds roughly 5s per 2^33 countss on 64bit 2.5GHZ Macbook Pro, gcc -O3
+convert = ["unsigned * ull2buf(unsigned long long x){",
+           "    unsigned * buf;",
+           "    unsigned y[8];",
+           "    unsigned long long z = x;",
+           "    y[0] = z & 65535; //16 ones",
+           "    z >>= 16;",
+           "    y[1] = z & 65535;",
+           "    z >>= 16;",
+           "    y[2] = z & 65535;",
+           "    z >>= 16;",
+           "    y[3] = z & 65535;",
            "",
-           "buf = y;",
-           "return buf;",
+           "    buf = y;",
+           "    return buf;",
            "}",
            ""]
 
@@ -196,6 +206,55 @@ lut16 =   ["unsigned char *lut;",
           "    buf++;",
           "  } while(--n);",
           "  return cnt;",
+          "}"]
+
+jel1 =    ["int popcount_jelinek1(uint64_t * buf, int n)",
+          "{",
+          "    int cnt = 0;",
+          "    uint64_t i;",
+          "    do {",
+          "        i = *buf;",
+          "        i = i - ((i >> 1) & 0x5555555555555555);",
+          "        i = (i & 0x3333333333333333) + ((i >> 2) & 0x3333333333333333);",
+          "        i = (i + (i >> 4)) & 0xF0F0F0F0F0F0F0F;",
+          "        cnt += (i * 0x101010101010101) >> 56;",
+          "        buf++;",
+          "    } while (--n);",
+          "    return cnt;",
+          "}"]
+
+jel2 =    ["int popcount_jelinek2(uint64_t * buf, int n)",
+          "{",
+          "    int cnt = 0;",
+          "    uint64_t i;",
+          "    do {",
+          "        i = *buf;",
+          "        unsigned int i1 = i, i2 = i >> 32;",
+          "        i1 = i1 - ((i1 >> 1) & 0x55555555);",
+          "        i2 = i2 - ((i2 >> 1) & 0x55555555);",
+          "        i1 = (i1 & 0x33333333) + ((i1 >> 2) & 0x33333333);",
+          "        i2 = (i2 & 0x33333333) + ((i2 >> 2) & 0x33333333);",
+          "        i1 = (i1 + (i1 >> 4)) & 0xF0F0F0F;",
+          "        i2 = (i2 + (i2 >> 4)) & 0xF0F0F0F;",
+          "        cnt += ((i1 + i2) * 0x1010101) >> 24;",
+          "        buf++;",
+          "    } while (--n);",
+          "    return cnt;",
+          "}"]
+
+jel3 =    ["int popcount_jelinek3(uint64_t * buf, int n)",
+          "{",
+          "    int cnt = 0;",
+          "    uint64_t i;",
+          "    do {",
+          "        i = *buf;",
+          "        i = i - ((i >> 1) & 0x5555555555555555);",
+          "        i = (i & 0x3333333333333333) + ((i >> 2) & 0x3333333333333333);",
+          "        i = (i + (i >> 4)) & 0xF0F0F0F0F0F0F0F;",
+          "        cnt += ((((unsigned int) i) + (unsigned int) (i >> 32)) * 0x1010101) >> 24;",
+          "        buf++;",
+          "    } while (--n);",
+          "    return cnt;",
           "}"]
 
 fbsd1 =  ["static inline int popcount_fbsd1(unsigned *buf, int n)",
@@ -346,7 +405,7 @@ rol8 =    ["#if !defined(__GNUC__)",
 rol32 =   ["#if !defined(__GNUC__)",
           "#error gnuc required.",
           "#endif",
-          "if defined(__GNUC__)",
+          "#if defined(__GNUC__)",
           "#define ROLADC32 __asm__(\"roll %0; \"\\",
           "\"adcl $0,%1;\": \"=r\"(c), \"=r\"(cnt) : \"0\"(c), \"1\"(cnt))",
           "static inline int popcount_roladc32(unsigned *buf, int n)",
