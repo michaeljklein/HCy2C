@@ -1,18 +1,18 @@
+import Control.Exception
 import Data.Bits
 import Data.List
 import Data.List.Split
 import Data.Maybe
 import Data.String.Utils
 import Foreign.C.Types
+import System.IO
+import System.Process
 import Text.Regex
 --import Control.Exception.Assert
 
 ---------------------------------------------------------------------------------------------------------------------------------------
 -------------------------------------------------------------------------------------------------------------------------------------
 --      TODO:
---      write a function that outputs one of http://www.dalkescientific.com/writings/diary/archive/2011/11/02/faster_popcount_update.html according to option
---      write a 'trim output' C function (should be easy to make a general one) and add both that and the rem0s function to the end of the program.
---              note: trim before rem0ing
 --
 --      Warning: no synopsis given. You should edit the .cabal file and add one.
 --      You may want to edit the .cabal file and add a Description field.
@@ -27,11 +27,13 @@ import Text.Regex
 --              write an interface to opencl to run in one thread at a time or auto-split work among threads (manager and push 'medium' tasks to others)
 --
 --      (mild)
+--              add count-only option to findcy
 --              fix other functions to not use a state variable
 --              make variables for repetitive operations (e.g. length - 1, show something, etc.)
+--              implement split-bits
 --
 --      (fun)
---              consider porting to accelerate with TemplateHaskell
+--              consider porting to accelerate with TemplateHaskell (partial version in '4gpu' folder)
 --
 --FIXED:
 --      converting vertex cycles to edge cycles misses edges (probably from the a/prepending
@@ -41,6 +43,9 @@ import Text.Regex
 --      make sure that sorting the indexed cycles does not affect the results
 --      fixed problem (quite persistent) caused by not initializing A[0] as anything other than all ones (bitwise)
 --      fix length' to not use a state/sofar variable
+--      write a function that outputs one of http://www.dalkescientific.com/writings/diary/archive/2011/11/02/faster_popcount_update.html according to option
+--      write a 'trim output' C function (should be easy to make a general one) and add both that and the rem0s function to the end of the program:
+--          -> going to just have Haskell do that instead
 --
 ---------------------------------------------------------------------------------------------------------------------------------------
 -------------------------------------------------------------------------------------------------------------------------------------
@@ -483,7 +488,7 @@ main = if goodGraphList k4g
 --
 --      The algorithm performs a depth first search from an arbitrary vertex, marking seen vertices on the way, and only outputting cycles through
 --              \ the initial vertex. As all cycles through that vertex have been found by the end, it is removed and the process repeated.
---              \ This way, there is no need to check if a cycle has been found yet.
+--              \ This way, there is no need to check if a cycle has been found yet and there are no sources of repetition.
 --
 --      The only weaknesses of this algorithm that I know are:
 --              1) It requires full out-adjacency lists for each vertex (best fit for directed, sparse graphs)
@@ -733,6 +738,42 @@ generateFindCyCode graph cfilename = unlines $ map (\s -> formatByDict s dict) c
                     "}",
                     ""]
 
+
+------------------------------------------------------------------------------------------------------------------------------------------------------------
+------------------------------------------------------------------------------------------------------------------------------------------------------------
+-- The following is wrapping together the two code-generators so that:
+--    compilation may be automatic (at least for findcy)
+--    can automatically pipe graph -> findcy -> cycles -> maxcy -> (compile/run) -> collect results
+--
+------------------------------------------------------------------------------------------------------------------------------------------------------------
+------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+processCycles :: [Char] -> [[Int]] -> [[Int]]
+processCycles cycles_str graph = if (done /= "DONE.") || (graph /= (show graph))
+                                    then error "Output file is either unfinished or unmatched to the current graph."
+                                    else map (\l ->trimList $ read l :: [Int]) cycles
+  where
+    cycles = init $ tail $ lines cycles_str
+    graph  =        head $ lines cycles_str
+    done   =        last $ lines cycles_str
+
+graphToCycles :: [[Int]] -> IO [[Int]]
+graphToCycles graphlist = do
+  let tempfilename = ".findcy_temp.c"
+  let code = generateFindCyCode graphlist tempfilename
+  cfile <- openFile "findcy_temp.c" WriteMode
+  write <- hPutStr cfile code
+  hClose cfile
+  comp_results <- readProcess "gcc" [".findcy_temp.c", "-O3", "-o", "findcy_temp"] []
+  putStr comp_results
+  run_results <- readProcess "./findcy_temp" [] []
+  putStr run_results
+  cycles_str <- catch (readFile ".findcy_temp.txt") handler
+  let cycles = processCycles cycles_str graphlist
+  return cycles
+    where
+      handler :: SomeException -> IO String
+      handler _ = error "The results have disappeared under my nose."
 
 ------------------------------------------------------------------------------------------------------------------------------------------------------------
 ------------------------------------------------------------------------------------------------------------------------------------------------------------

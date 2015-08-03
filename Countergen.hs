@@ -10,6 +10,7 @@ import System.IO.Error hiding (catch)
 --TODO: add arg for initialization of counter extras (ex, in main for lut8/16)
 
 --NOTES: -O3 breaks almost everything :/
+--        profiles at end show most of this would require retooling either the actual popcounters or main program
 
 -- makeCounterPip examples:
 -- (convert)
@@ -910,4 +911,68 @@ ssse3 =  ["#if !(defined(__GNUC__) && defined(__SSSE3__))",
 
 
 
+michaelklein@Michaels-MacBook-Pro:~/Desktop/Hcy2c$ ./Countergen
+popcount_jelinek1:
+
+       22.26 real        22.23 user         0.00 sys
+64
+1084369920
+False
+-------------------------------------------------------------------------------------------------------------------------------------------
+popcount_jelinek2:
+
+       15.03 real        15.00 user         0.00 sys
+64
+1084369920
+False
+-------------------------------------------------------------------------------------------------------------------------------------------
+popcount_jelinek3:
+
+       25.64 real        25.60 user         0.01 sys
+64
+1084369920
+False
+-------------------------------------------------------------------------------------------------------------------------------------------
+popcount_wikipedia_2:
+
+       17.10 real        17.08 user         0.00 sys
+64
+1084369920
+False
+-------------------------------------------------------------------------------------------------------------------------------------------
+popcount_wikipedia_3:
+
+       22.50 real        22.47 user         0.00 sys
+64
+1084369920
+False
+-------------------------------------------------------------------------------------------------------------------------------------------
+popcountll_gcc:
+
+       21.89 real        21.85 user         0.01 sys
+64
+1084369920
+False
+-------------------------------------------------------------------------------------------------------------------------------------------
+Done.----------------------------------------------------------------------------------------------------------------------------------------------------------- 11:36:41
+michaelklein@Michaels-MacBook-Pro:~/Desktop/Hcy2c$
+
+the following shows the difference between buffered and unbuffered popcounting (buffered slightly slower, loop of 10^10 checks)
+michaelklein@Michaels-MacBook-Pro:~/Desktop/Hcy2c/cexperiments/popcount_profile/popcount_profile$ time ./testing
+64
+1084369920
+
+real    1m37.447s
+user    1m37.409s
+sys    0m0.026s
+----------------------------------------------------------------------------------------------------------------------------------------------------------- 11:27:08
+michaelklein@Michaels-MacBook-Pro:~/Desktop/Hcy2c/cexperiments/popcount_profile/popcount_profile$ gcc testing.c -o testing
+----------------------------------------------------------------------------------------------------------------------------------------------------------- 11:27:27
+michaelklein@Michaels-MacBook-Pro:~/Desktop/Hcy2c/cexperiments/popcount_profile/popcount_profile$ time ./testing
+64
+1084369920
+
+real    1m32.670s
+user    1m32.614s
+sys    0m0.036s
 
