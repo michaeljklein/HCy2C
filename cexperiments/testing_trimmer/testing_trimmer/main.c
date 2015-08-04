@@ -10,8 +10,9 @@
 #include <stdio.h>
 #include <errno.h>
 #include <stdlib.h>
+#include <x86intrin.h>
 
-
+rdtsc();
 
 void executeFile(char *path){
     FILE *fp; /*filepointer*/

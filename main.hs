@@ -24,6 +24,7 @@ import Text.Regex
 --
 --      (long)
 --              write an interface to compile, run and feedback results into haskell
+--              write an unfolder to unfold n loops of findcy's tree search
 --              write an interface to opencl to run in one thread at a time or auto-split work among threads (manager and push 'medium' tasks to others)
 --
 --      (mild)
@@ -522,8 +523,8 @@ otherElem a l = if (head l) == a then head $ tail l else head l
 unlines' :: [[Char]] -> [Char]
 unlines' s = foldr (\a b -> a ++ "\n" ++ b) "" s
 
-generateFindCyCode :: [[Int]] -> [Char] -> [Char]
-generateFindCyCode graph cfilename = unlines $ map (\s -> formatByDict s dict) codelist
+generateFindCyCode :: [[Int]] -> [Char] -> Bool-> [Char]
+generateFindCyCode graph cfilename justCount = unlines $ map (\s -> formatByDict s dict) codelist
     where
         glen = length graph
         gmax = length $ tail graph
@@ -543,12 +544,12 @@ generateFindCyCode graph cfilename = unlines $ map (\s -> formatByDict s dict) c
                 (":assign_apath", assign_apath)]
 
         -- :init_lookup   char lookup[4][1] = {"0","1","2","3"};
-        init_lookup = "    char lookup[" ++ (show glen) ++ "][" ++ (show maxd) ++ "] = {" ++ (tail $ init $ show vallist) ++ "};"
+        init_lookup_list = "    char lookup[" ++ (show glen) ++ "][" ++ (show maxd) ++ "] = {" ++ (tail $ init $ show vallist) ++ "};"
                 where
                     vallist = map (\n -> padStrLeft0s (show n) maxd) [0..(gmax)]
 
         -- :init_str      char str[13] = "[_,_,_,_]\n"; -- Note that there could be multiple '_'s
-        init_str = "    char str[" ++ show (3 + glen * maxd + glen - 1) ++ "] = \"[" ++ (init $ concat $ replicate (length graph) ((concat (replicate (digLen10 $ length graph) "_")) ++ ",")) ++ "]\\n\";"
+        init_str_list = "    char str[" ++ show (3 + glen * maxd + glen - 1) ++ "] = \"[" ++ (init $ concat $ replicate (length graph) ((concat (replicate (digLen10 $ length graph) "_")) ++ ",")) ++ "]\\n\";"
 
         {- :init_strs
             str[1] = lookup[this_current_path[0]][0];
@@ -556,10 +557,22 @@ generateFindCyCode graph cfilename = unlines $ map (\s -> formatByDict s dict) c
             str[5] = lookup[this_current_path[2]][0];
             str[7] = lookup[this_current_path[3]][0];
         -}
-        init_strs = unlines $ map (\i -> unlines $ map (\j -> "    str[" ++ show (j * (maxd + 1)) ++ "] = lookup[this_current_path[" ++ (show j) ++ "][" ++ (show j) ++ "];") [0..(maxd - 1)]) [0..(glen-1)]
+        init_strs_list = unlines $ map (\i -> unlines $ map (\j -> "    str[" ++ show (j * (maxd + 1)) ++ "] = lookup[this_current_path[" ++ (show j) ++ "][" ++ (show j) ++ "];") [0..(maxd - 1)]) [0..(glen-1)]
 
         -- :fwrite_str    fwrite(str, 1, 13, outfile);
-        fwrite_str = "    fwrite(str, 1, " ++ show (3 + (length graph) * (digLen10 $ length graph) + (length graph) - 1) ++ ", outfile);"
+        fwrite_str_list = "    fwrite(str, 1, " ++ show (3 + (length graph) * (digLen10 $ length graph) + (length graph) - 1) ++ ", outfile);"
+
+        if not justCount
+           then
+              init_lookup = init_lookup_list
+              init_str    = init_str_list
+              init_strs   = init_strs_list
+              fwrite_str  = fwrite_str_list
+           else
+              init_lookup = ""
+              init_str    = ""
+              init_strs   = ""
+              fwrite_str  = "    count++;"
 
         {- :init_vos
                           const unsigned int vo0[3] = {1, 2, 3};
@@ -601,10 +614,17 @@ generateFindCyCode graph cfilename = unlines $ map (\s -> formatByDict s dict) c
         -- :assign_apath  adjacency_path[0] = 0; adjacency_path[1] = 0; adjacency_path[2] = 0; adjacency_path[3] = 0;,
         assign_apath = "    " ++ (concat $ map (\i -> "adjacency_path[" ++ show i ++ "] = 0; ") [0..(glen-1)])
 
+        -- :fwrite_finish            fwrite(\"DONE.\", 1, 5, outfile);
+        fwrite_finish = if not justCount
+                           then "            fwrite(\"DONE.\", 1, 5, outfile);"
+                           else "            char cstr[21];\n            sprintf(cstr, \"%20llu\n\", count);\n            fwrite(str, 1, 21, outfile);\n            fwrite(\"DONE.\", 1, 5, outfile);"
         codelist = ["#include <stdio.h>",
                     "",
                     "void print_cycle(FILE * outfile, unsigned int * this_current_path){",
-
+                    ":init_lookup",
+                    ":init_str",
+                    ":init_strs",
+                    ":fwrite_str",
                     -- :init_lookup   char lookup[4][1] = {"0","1","2","3"};
                     -- :init_str      char str[13] = "[_,_,_,_]\n";
                     {- :init_strs
@@ -618,7 +638,9 @@ generateFindCyCode graph cfilename = unlines $ map (\s -> formatByDict s dict) c
                     "}",
                     "",
                     "int main(int argc, const char * argv[]) {",
-
+                    "    unsigned long long count = 0;",
+                    ":init_vos",
+                    ":init_vomax",
                     {- :init_vos
                                       const unsigned int vo0[3] = {1, 2, 3};
                                       const unsigned int vo1[1] = {2};
@@ -628,12 +650,12 @@ generateFindCyCode graph cfilename = unlines $ map (\s -> formatByDict s dict) c
                     -}
                     -- :init_vomax    const unsigned int vomax[4] = {3, 1, 1, 1};
 
-
+                    ":init_paths",
                     -- :init_paths    unsigned int current_path[4];
                     --                unsigned int adjacency_path[4];
 
                     "    register unsigned int path_position = 0;",
-
+                    ":init_fresh",
                     -- :init_fresh    unsigned char fresh[4] = {1,1,1,1};
                     --                unsigned char inplay[4] = {1,1,1,1};
 
@@ -644,16 +666,18 @@ generateFindCyCode graph cfilename = unlines $ map (\s -> formatByDict s dict) c
                     "    register unsigned int possible_fresh;",
                     "    register unsigned int possible_fresh_adjacency;",
                     "    register unsigned int local_max;",
-
+                    ":init_file",
                     -- :init_file     FILE * outfile = fopen("checking.txt", "w");
-
+                    ":fwrite_graph",
                     -- :fwrite_graph  fwrite("[[0,1],[0,2],[0,3],[1,2],[3,1],[2,3]]\n",1,39,outfile);
 
                     "",
                     "    starter_loop:",
                     "    if (start != 2 ) {",
                     "        inplay[start] = 0;",
-
+                    ":assign_fresh",
+                    ":assign_cpath",
+                    ":assign_apath",
                     -- :assign_fresh  fresh[0] = inplay[0]; fresh[1] = inplay[1]; fresh[2] = inplay[2]; fresh[3] = inplay[3];
                     -- :assign_cpath  current_path[0] = start; current_path[1] = 0; current_path[2] = 0; current_path[3] = 0;
                     -- :assign_apath  adjacency_path[0] = 0; adjacency_path[1] = 0; adjacency_path[2] = 0; adjacency_path[3] = 0;,
@@ -730,7 +754,8 @@ generateFindCyCode graph cfilename = unlines $ map (\s -> formatByDict s dict) c
                     "        goto starter_loop;",
                     "    } else {",
                     "",
-                    "            fwrite(\"DONE.\", 1, 5, outfile);",
+                    ":fwrite_finish",
+                    --"            fwrite(\"DONE.\", 1, 5, outfile);",
                     "            fclose(outfile);",
                     "            return 0;",
                     "    }",
@@ -760,7 +785,7 @@ processCycles cycles_str graph = if (done /= "DONE.") || (graph /= (show graph))
 graphToCycles :: [[Int]] -> IO [[Int]]
 graphToCycles graphlist = do
   let tempfilename = ".findcy_temp.c"
-  let code = generateFindCyCode graphlist tempfilename
+  let code = generateFindCyCode graphlist tempfilename False
   cfile <- openFile "findcy_temp.c" WriteMode
   write <- hPutStr cfile code
   hClose cfile

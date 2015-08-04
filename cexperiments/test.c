@@ -1,4 +1,7 @@
 #include <stdio.h>
+#include <x86intrin.h>
+
+
 static unsigned long long int ONES = 18446744073709551615LLU;
 unsigned long long int y;
 unsigned int best = 1;
@@ -44,21 +47,23 @@ void checkifbest(){
     this = 0;
     this += counter(A[maxpos][0]);
 
-
-    if(this == best){
-        sprintf(str, "[%d%d%d%d%d%d,%5d]\n", X[0],X[1],X[2],X[3],X[4],X[5],this );
-        fwrite(str, 1, sizeof(str), fout);
-    }
-
+    char cstr[21];
+    sprintf(cstr, "%20llu\n", 20LLU);
+    fwrite(str, 1, 21, fout);
+//    if(this == best){
+//        sprintf(str, "[%d%d%d%d%d%d,%5d]\n", X[0],X[1],X[2],X[3],X[4],X[5],this );
+//        fwrite(str, 1, sizeof(str), fout);
+//    }
+//
     if(this > best){
-        sprintf(str, "[%d%d%d%d%d%d,%5d]\n", X[0],X[1],X[2],X[3],X[4],X[5],this );
-        fwrite(str, 1, sizeof(str), fout);
+//        sprintf(str, "[%d%d%d%d%d%d,%5d]\n", X[0],X[1],X[2],X[3],X[4],X[5],this );
+//        fwrite(str, 1, sizeof(str), fout);
         best = this;
     }
 
-    if(this < best){
-        ;
-    }
+//    if(this < best){
+//        ;
+//    }
 }
 
 int r(){
@@ -106,26 +111,30 @@ int r(){
         return 0;
 }
 int main(int argc, const char * argv[]) {
-    fout = fopen("test_0_1_out.txt", "w");
-    fputs("[[0,1],[0,2],[0,3],[1,2],[1,3],[2,3]]\n", fout);
-    if(endhere > 0){
-        unsigned int bitpos = 0;
-        unsigned int thisbit;
-        while(starthere){
-            thisbit = starthere & 1;
-            X[bitpos] = thisbit;
-            f(bitpos, thisbit);
-            bitpos++;
-            starthere >>= 1;
-        }
-        i = endhere;
-        r();
-    }else{
+    unsigned long long c0 = __rdtsc();
+//    fout = fopen("test_0_1_out.txt", "w");
+//    fputs("[[0,1],[0,2],[0,3],[1,2],[1,3],[2,3]]\n", fout);
+//    if(endhere > 0){
+//        unsigned int bitpos = 0;
+//        unsigned int thisbit;
+//        while(starthere){
+//            thisbit = starthere & 1;
+//            X[bitpos] = thisbit;
+//            f(bitpos, thisbit);
+//            bitpos++;
+//            starthere >>= 1;
+//        }
+//        i = endhere;
+//        r();
+//    }else{
         i = 1;
         r();
-    }
-    fwrite("FINISHED", 1, 9, fout);
-    fclose(fout);
+//    }
+//    fwrite("FINISHED", 1, 9, fout);
+//    fclose(fout);
+    
+    unsigned long long c1 =  __rdtsc();
+    printf("%llu\n", c1-c0);
     return 0;
 }
 
