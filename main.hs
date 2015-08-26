@@ -11,6 +11,10 @@ import System.Process
 import Text.Regex
 --import Control.Exception.Assert
 
+--For Debugging
+import Data.Typeable
+import System.IO.Unsafe
+
 ---------------------------------------------------------------------------------------------------------------------------------------
 -------------------------------------------------------------------------------------------------------------------------------------
 --      TODO:
@@ -811,15 +815,19 @@ generateFindCyCode graph cfilename justCount = unlines $ map (\s -> formatByDict
     -- graph  = head $ lines cycles_str
     -- done   = last $ lines cycles_str
 
---processCycles :: (Read a, Integral a) => IO [Char] -> [[Int]] -> IO [[a]]
-processCycles cycles_str graph = if good
-                                    then liftM (\s ->(map read_cy $ trim $ lines s)) cycles_str
-                                    else error "Output file is either unfinished or unmatched to the current graph."
+ifElseError bool thn = if bool then thn else error "Output file unfinished or unmatched to graph."
+
+processCycles :: [Char] -> [[Int]] -> [[Int]]
+processCycles cycles_string graph = ifElseError good ((\s ->(map read_cy $ trim $ lines s)) cycles_string)
+
+    --liftM3 if good
+    --                                then liftM (\s ->(map read_cy $ trim $ lines s)) cycles_string
+    --                                else error "Output file is either unfinished or unmatched to the current graph."
   where
-    good             = liftM2 (&&) finished good_graph
-    finished         = liftM (\s ->eq_done $ last $ lines s) cycles_str
+    good             = (&&) finished good_graph
+    finished         = (\s ->eq_done $ last $ lines s) cycles_string
     eq_done s        = "DONE." == s
-    good_graph       = liftM (\s ->eq_graph graph $ head $ lines s) cycles_str
+    good_graph       = (\s ->eq_graph graph $ head $ lines s) cycles_string
     eq_graph graph s = (show graph) == s
     read_cy cy       = trimList $ read cy
 
@@ -875,7 +883,11 @@ k4c = [[0,1,2,0],[0,1,2,3],[0,1,3,0],[0,1,3,2],[0,2,1,0],[0,2,1,3],[0,2,3,0],[0,
 
 --main :: IO ()
 --main = graphToMaxcyCode k4g 0 "testt"
-main = graphToCycles k4g
+main = do
+--  a <- putStrLn $ liftM show $ typeOf processCycles
+  let out_string = show $ unsafePerformIO (graphToCycles k4g)
+  putStr $ out_string
+  putStrLn "\nDone."
 
 ------------------------------------------------------------------------------------------------------------------------------------------------------------
 ------------------------------------------------------------------------------------------------------------------------------------------------------------
