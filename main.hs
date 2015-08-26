@@ -1,4 +1,5 @@
 import Control.Exception
+import Control.Monad
 import Data.Bits
 import Data.List
 import Data.List.Split
@@ -20,23 +21,35 @@ import Text.Regex
 --      profile!:
 --              consider whether to optimize r() further
 --              consider rolling my own 'sprinter' (should be a peice of cake, but maybe not worth it)
---              use papi get_real_cycles() to interpolate the number of cpu-cycles for a e-edge, c-cycle graph
+--                  use "str[i] = X[i] ^ 48" (48 is '0', 49 is '1')
+--                  use "A ^ B" instead of "A /= B"
+--                  instead of "this = 0;\n this += ...", use "this = a + b + c;"
+--                  get rid of "if (this < best)" case
+--              NO-LONGER:use papi get_real_cycles() to interpolate the number of cpu-cycles for a e-edge, c-cycle graph
+--                  use "#include <x86intrin.h>" and "unsigned long long c0 = __rdtsc();" unstead of papi.
+--              write-up number of steps (something like ceiling(forms/64)*2^numedges) and find constant of ~how many cycles per asympt. step
+--              profile and lightly optimize the haskell code
 --
 --      (long)
 --              write an interface to compile, run and feedback results into haskell
+--                  implemented for findcy w/o justCount -> should be simple mod for w/
+--              add support for QuickCheck
 --              write an unfolder to unfold n loops of findcy's tree search
 --              write an interface to opencl to run in one thread at a time or auto-split work among threads (manager and push 'medium' tasks to others)
+--              write a more formal interface to the whole thing, incl. a general graph -> minimal nontrivial parts -> complete solution
 --
 --      (mild)
---              add count-only option to findcy
+--              remove 'ONES' if not needed
 --              fix other functions to not use a state variable
 --              make variables for repetitive operations (e.g. length - 1, show something, etc.)
 --              implement split-bits
+--              "The -ddump-minimal-imports option to ghc writes the cleaned-up list to M.imports, where M is the module being compiled."
+--              add option to only print new bests
 --
 --      (fun)
---              consider porting to accelerate with TemplateHaskell (partial version in '4gpu' folder)
+--              consider porting to accelerate (with TemplateHaskell?) (partial version in '4gpu' folder)
 --
---FIXED:
+--FIXED/DONE:
 --      converting vertex cycles to edge cycles misses edges (probably from the a/prepending
 --      converting a [1,0] list to a ULL doesn't pad properly. It outputs [1,1..stuff] instead of [stuff,1,1..1]
 --      specifically important for this fix is the aalist essentailly treating all start values as 0. not good.
@@ -47,6 +60,7 @@ import Text.Regex
 --      write a function that outputs one of http://www.dalkescientific.com/writings/diary/archive/2011/11/02/faster_popcount_update.html according to option
 --      write a 'trim output' C function (should be easy to make a general one) and add both that and the rem0s function to the end of the program:
 --          -> going to just have Haskell do that instead
+--      add count-only option to findcy
 --
 ---------------------------------------------------------------------------------------------------------------------------------------
 -------------------------------------------------------------------------------------------------------------------------------------
@@ -197,10 +211,11 @@ listFirstAnd a  _  [] = a
 listFirstAnd a  b  c  = (zipWith (.&.) (head b) (head c)):(tail a)
 
 --generateCode :: (Integral a, Bits a, Show a) => [[a]] -> [[a]] -> a -> a -> a -> a -> String
-generateMaxCyCode :: [[Int]] -> [[Int]] -> Int -> Int -> Int -> Int -> (String, String)
-generateMaxCyCode graph cycles start end splitbits twotothesplitbits = (unlines $ map (\s -> formatByDict s dict) codelist, printout)
+generateMaxCyCode :: [[Int]] -> [[Int]] -> Int -> Int -> Int -> (String, String)
+generateMaxCyCode graph cycles start end splitbits = (unlines $ map (\s -> formatByDict s dict) codelist, printout)
 
     where
+        twotothesplitbits = 2^splitbits
         printout = unlines ["graph:" ++ (show graph),
                             "cycles:" ++ (show cycles),
                             "cyclelists:" ++ (show cyclelists),
@@ -473,8 +488,8 @@ k4c = [[0,1,2,0],[0,1,2,3],[0,1,3,0],[0,1,3,2],[0,2,1,0],[0,2,1,3],[0,2,3,0],[0,
 main :: IO ()
 main = if goodGraphList k4g
         then do
-            writeFile "test.c" (fst (generateMaxCyCode k4g k4c 0 1 0 1))
-            putStrLn (snd (generateMaxCyCode k4g k4c 0 1 0 1))
+            writeFile "test.c" (fst (generateMaxCyCode k4g k4c 0 1 0))
+            putStrLn (snd (generateMaxCyCode k4g k4c 0 1 0))
         else putStrLn "not a good graph"
 
 
@@ -541,7 +556,8 @@ generateFindCyCode graph cfilename justCount = unlines $ map (\s -> formatByDict
                 (":init_file",    init_file),
                 (":fwrite_graph", fwrite_graph),
                 (":assign_cpath", assign_cpath),
-                (":assign_apath", assign_apath)]
+                (":assign_apath", assign_apath),
+                (":fwrite_finish",fwrite_finish)]
 
         -- :init_lookup   char lookup[4][1] = {"0","1","2","3"};
         init_lookup_list = "    char lookup[" ++ (show glen) ++ "][" ++ (show maxd) ++ "] = {" ++ (tail $ init $ show vallist) ++ "};"
@@ -562,17 +578,10 @@ generateFindCyCode graph cfilename justCount = unlines $ map (\s -> formatByDict
         -- :fwrite_str    fwrite(str, 1, 13, outfile);
         fwrite_str_list = "    fwrite(str, 1, " ++ show (3 + (length graph) * (digLen10 $ length graph) + (length graph) - 1) ++ ", outfile);"
 
-        if not justCount
-           then
-              init_lookup = init_lookup_list
-              init_str    = init_str_list
-              init_strs   = init_strs_list
-              fwrite_str  = fwrite_str_list
-           else
-              init_lookup = ""
-              init_str    = ""
-              init_strs   = ""
-              fwrite_str  = "    count++;"
+        init_lookup = if not justCount then init_lookup_list else ""
+        init_str    = if not justCount then init_str_list else ""
+        init_strs   = if not justCount then init_strs_list else ""
+        fwrite_str  = if not justCount then fwrite_str_list else "    count++;"
 
         {- :init_vos
                           const unsigned int vo0[3] = {1, 2, 3};
@@ -790,15 +799,42 @@ graphToCycles graphlist = do
   write <- hPutStr cfile code
   hClose cfile
   comp_results <- readProcess "gcc" [".findcy_temp.c", "-O3", "-o", "findcy_temp"] []
-  putStr comp_results
+  putStrLn comp_results
   run_results <- readProcess "./findcy_temp" [] []
-  putStr run_results
+  putStrLn run_results
   cycles_str <- catch (readFile ".findcy_temp.txt") handler
   let cycles = processCycles cycles_str graphlist
   return cycles
     where
       handler :: SomeException -> IO String
       handler _ = error "The results have disappeared under my nose."
+
+graphToMaxcyCode :: [[Int]] -> Int -> [Char] -> IO ()
+graphToMaxcyCode graphlist splitbits name = do
+  let cycles = graphToCycles graphlist
+  let endhere = splitbits + 1
+-- ???????????????????????
+  let startmap = \start ->liftM (\cy -> (show start, fst $ generateMaxCyCode graphlist cy start endhere splitbits)) cycles
+  let codelist = map startmap  [0..(2^splitbits)-1] :: [IO (String, String)]
+  mkdir_results <- readProcess "mkdir" [name] []
+  putStrLn mkdir_results
+  mapM_ writeC codelist
+    where
+      writeC :: IO (String, String) ->IO ()
+      writeC input = do
+        let maxfilenum = (2^splitbits)-1
+        let outfilenamefun = \s ->name ++ "/runner_" ++ s ++ "_" ++ (show maxfilenum) ++ ".c"
+        let outfilename = liftM outfilenamefun start
+        outfile <- liftM (\filename ->openFile filename WriteMode) outfilename
+        writetofile <- liftM2 hPutStr outfile code
+        closeout <- liftM hClose outfile
+        return ()
+          where
+            start = liftM fst input :: IO String
+            code  = liftM snd input :: IO String
+-- generateMaxCyCode graph cycles start end splitbits
+
+
 
 ------------------------------------------------------------------------------------------------------------------------------------------------------------
 ------------------------------------------------------------------------------------------------------------------------------------------------------------

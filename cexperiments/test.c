@@ -47,9 +47,7 @@ void checkifbest(){
     this = 0;
     this += counter(A[maxpos][0]);
 
-    char cstr[21];
-    sprintf(cstr, "%20llu\n", 20LLU);
-    fwrite(str, 1, 21, fout);
+
 //    if(this == best){
 //        sprintf(str, "[%d%d%d%d%d%d,%5d]\n", X[0],X[1],X[2],X[3],X[4],X[5],this );
 //        fwrite(str, 1, sizeof(str), fout);
