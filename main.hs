@@ -28,7 +28,7 @@ import Text.Regex
 --              NO-LONGER:use papi get_real_cycles() to interpolate the number of cpu-cycles for a e-edge, c-cycle graph
 --                  use "#include <x86intrin.h>" and "unsigned long long c0 = __rdtsc();" unstead of papi.
 --              write-up number of steps (something like ceiling(forms/64)*2^numedges) and find constant of ~how many cycles per asympt. step
---              profile and lightly optimize the haskell code
+--                profile and lightly optimize the haskell code
 --
 --      (long)
 --              write an interface to compile, run and feedback results into haskell
@@ -37,14 +37,14 @@ import Text.Regex
 --              write an unfolder to unfold n loops of findcy's tree search
 --              write an interface to opencl to run in one thread at a time or auto-split work among threads (manager and push 'medium' tasks to others)
 --              write a more formal interface to the whole thing, incl. a general graph -> minimal nontrivial parts -> complete solution
+--                still need solution files to graph
 --
 --      (mild)
 --              remove 'ONES' if not needed
 --              fix other functions to not use a state variable
 --              make variables for repetitive operations (e.g. length - 1, show something, etc.)
---              implement split-bits
 --              "The -ddump-minimal-imports option to ghc writes the cleaned-up list to M.imports, where M is the module being compiled."
---              add option to only print new bests
+--              add option to only print new bests?
 --
 --      (fun)
 --              consider porting to accelerate (with TemplateHaskell?) (partial version in '4gpu' folder)
@@ -61,6 +61,7 @@ import Text.Regex
 --      write a 'trim output' C function (should be easy to make a general one) and add both that and the rem0s function to the end of the program:
 --          -> going to just have Haskell do that instead
 --      add count-only option to findcy
+--      implement split-bits
 --
 ---------------------------------------------------------------------------------------------------------------------------------------
 -------------------------------------------------------------------------------------------------------------------------------------
@@ -140,7 +141,7 @@ dVarList avlist bvlist = zipWith (\a b -> (1-a) .|.    b  ) avlist bvlist
 --length' [] p = p
 --length' (_:xs) p = length' xs (p+1)
 length' :: (Eq a, Integral b) => [a] -> b
-length' l = if l == [] then 0 else length' (tail l)
+length' l = if l == [] then 0 else 1 + length' (tail l)
 
 replicate' :: Integral b => a -> b -> [a]
 replicate' x t = map (\_ -> x) [1..t]
@@ -185,6 +186,11 @@ listToULLs list = map listToULL (chunksOf 64 (padMod list 0 64))
 elemIndex'' :: (Eq a, Integral b) => a -> [a] -> b -> Maybe b
 elemIndex'' _ [] _ = Nothing
 elemIndex'' x (y:ys) p = if x == y then Just p else elemIndex'' x ys (p + 1)
+--nojust :: Maybe t -> t
+--nojust (Just a) = a
+--el_prop x list = if (el x list) == Nothing then True else (list !! (nojust $ el x list)) == x
+--quickCheck el_prop
+--(All good)
 
 getElem :: Integral b => [a] -> b -> a
 getElem l 0 = head l
@@ -265,7 +271,7 @@ generateMaxCyCode graph cycles start end splitbits = (unlines $ map (\s -> forma
         starthere = "unsigned int starthere = " ++ (show start) ++ ";"
 
         --":cstr" char str[13] = {0,0,0,0,0,0,0,0,0,0,0,0,0};
-        cstr = "char str[" ++ (show $ 10 + length graph) ++ "] = {" ++ (init $ tail $ show $ replicate (10 + length graph) 0) ++ "};" --10 is not very magic, just count the chars in the output and leave a few to spare
+        cstr = "char str[" ++ (show $ 10 + length graph) ++ "] = {" ++ (trim $ show $ replicate (10 + length graph) 0) ++ "};" --10 is not very magic, just count the chars in the output and leave a few to spare
 
         --":carray" static unsigned long long int C[3][1] = {{18446744073709551614LLU}, {18446744073709551614LLU}, {18446744073709551613LLU}};
         carray = addULLs ("static unsigned long long int C[" ++ (show $ length clist) ++ "][" ++ (show $ length $ head clist) ++ "] = " ++ (replace "]" "}" (replace "[" "{" (show clist))) ++ ";")
@@ -274,7 +280,7 @@ generateMaxCyCode graph cycles start end splitbits = (unlines $ map (\s -> forma
         darray = addULLs ("static unsigned long long int D[" ++ (show $ length dlist) ++ "][" ++ (show $ length $ head dlist) ++ "] = " ++ (replace "]" "}" (replace "[" "{" (show dlist))) ++ ";")
 
         --":xarray" unsigned int X[3] = {0, 0, 0};
-        xarray = "unsigned int X[" ++ (show $ length graph) ++ "] = {" ++ (init $ tail $ show $ replicate (length graph) 0) ++ "};"
+        xarray = "unsigned int X[" ++ (show $ length graph) ++ "] = {" ++ (trim $ show $ replicate (length graph) 0) ++ "};"
 
         --":aarray" unsigned long long int A[3][1] = {{18446744073709551615LLU}, {18446744073709551615LLU}, {18446744073709551615LLU}};
         aarray = addULLs ("unsigned long long int A[" ++ (show $ length graph) ++ "][" ++ (show $ length $ head aalist) ++ "] = " ++ (replace "]" "}" (replace "[" "{" (show aalist))) ++ ";")
@@ -479,18 +485,18 @@ testcycles :: [[Int]]
 testcycles = [[0,1,2,0,0],[1,0,2,0,0,0]]
 -}
 
-k4g :: [[Int]]
-k4g = [[0,1],[0,2],[0,3],[1,2],[1,3],[2,3]]
+-- k4g :: [[Int]]
+-- k4g = [[0,1],[0,2],[0,3],[1,2],[1,3],[2,3]]
 
-k4c :: [[Int]]
-k4c = [[0,1,2,0],[0,1,2,3],[0,1,3,0],[0,1,3,2],[0,2,1,0],[0,2,1,3],[0,2,3,0],[0,2,3,1],[0,3,1,0],[0,3,1,2],[0,3,2,0],[0,3,2,1],[1,2,3,0],[1,3,2,0]]
+-- k4c :: [[Int]]
+-- k4c = [[0,1,2,0],[0,1,2,3],[0,1,3,0],[0,1,3,2],[0,2,1,0],[0,2,1,3],[0,2,3,0],[0,2,3,1],[0,3,1,0],[0,3,1,2],[0,3,2,0],[0,3,2,1],[1,2,3,0],[1,3,2,0]]
 
-main :: IO ()
-main = if goodGraphList k4g
-        then do
-            writeFile "test.c" (fst (generateMaxCyCode k4g k4c 0 1 0))
-            putStrLn (snd (generateMaxCyCode k4g k4c 0 1 0))
-        else putStrLn "not a good graph"
+-- main :: IO ()
+-- main = if goodGraphList k4g
+        -- then do
+            -- writeFile "test.c" (fst (generateMaxCyCode k4g k4c 0 1 0))
+            -- putStrLn (snd (generateMaxCyCode k4g k4c 0 1 0))
+        -- else putStrLn "not a good graph"
 
 
 
@@ -538,6 +544,12 @@ otherElem a l = if (head l) == a then head $ tail l else head l
 unlines' :: [[Char]] -> [Char]
 unlines' s = foldr (\a b -> a ++ "\n" ++ b) "" s
 
+trim :: [a] -> [a]
+trim list = init $ tail list
+
+hStringToCList :: String -> String
+hStringToCList string = "[" ++ (trim string) ++ "]"
+
 generateFindCyCode :: [[Int]] -> [Char] -> Bool-> [Char]
 generateFindCyCode graph cfilename justCount = unlines $ map (\s -> formatByDict s dict) codelist
     where
@@ -549,12 +561,17 @@ generateFindCyCode graph cfilename justCount = unlines $ map (\s -> formatByDict
         dict = [(":init_lookup",  init_lookup),
                 (":init_str",     init_str),
                 (":init_strs",    init_strs),
+                (":fwrite_str",   fwrite_str),
+                -- (":adj_lists",    adj_lists),
+                -- (":cadj_lists",   cadj_lists),
+                (":voss",         voss),
                 (":init_vos",     init_vos),
                 (":init_vomax",   init_vomax),
                 (":init_paths",   init_paths),
                 (":init_fresh",   init_fresh),
                 (":init_file",    init_file),
                 (":fwrite_graph", fwrite_graph),
+                (":assign_fresh", assign_fresh),
                 (":assign_cpath", assign_cpath),
                 (":assign_apath", assign_apath),
                 (":fwrite_finish",fwrite_finish)]
@@ -573,8 +590,11 @@ generateFindCyCode graph cfilename justCount = unlines $ map (\s -> formatByDict
             str[5] = lookup[this_current_path[2]][0];
             str[7] = lookup[this_current_path[3]][0];
         -}
-        init_strs_list = unlines $ map (\i -> unlines $ map (\j -> "    str[" ++ show (j * (maxd + 1)) ++ "] = lookup[this_current_path[" ++ (show j) ++ "][" ++ (show j) ++ "];") [0..(maxd - 1)]) [0..(glen-1)]
-
+        -- POSSIBLE ERRORS IN FOLLOWING LINE:
+        init_strs_list = unlines $ map (\pathpos -> unlines $ map (\digpos -> "    str[" ++ show (pathpos * (maxd+1) + digpos + 1) ++ "] = lookup[this_current_path[" ++ (show pathpos) ++ "]][" ++ (show digpos) ++ "];") [0..(maxd-1)]) [0..(glen-1)]
+        -- numparts = \j -> "    str[" ++ (show (j * (maxd + 1) + i
+        -- pathparts = \i -> unlines $ map numparts [0..(maxd-1)]
+        -- init_strs_list = unlines $ map pathparts [0..(glen-1)]
         -- :fwrite_str    fwrite(str, 1, 13, outfile);
         fwrite_str_list = "    fwrite(str, 1, " ++ show (3 + (length graph) * (digLen10 $ length graph) + (length graph) - 1) ++ ", outfile);"
 
@@ -592,21 +612,21 @@ generateFindCyCode graph cfilename justCount = unlines $ map (\s -> formatByDict
         -}
 
         adj_lists = map (\v ->sort $ map (otherElem v) (filter (\e -> elem v e) graph)) [0..(glen - 1)]
-        cadj_lists = unlines' $ zipWith (\l i -> "    const unsigned int vo" ++ (show i) ++ "[" ++ (show $ length l) ++ "] = {" ++ (init $ tail $ show l) ++ "};") adj_lists [0..]
-        voss = "const unsigned int * vos[" ++ (show glen) ++ "] = {" ++ (tail $ concat $ zipWith (++) [",vo" | x <- [0..]] (map show [0..(gmax)])) ++ "};"
+        cadj_lists = unlines' $ zipWith (\l i -> "    const unsigned int vo" ++ (show i) ++ "[" ++ (show $ length l) ++ "] = {" ++ (trim $ show l) ++ "};") adj_lists [0..]
+        voss = "    const unsigned int * vos[" ++ (show glen) ++ "] = {" ++ (tail $ concat $ zipWith (++) [",vo" | x <- [0..]] (map show [0..(gmax)])) ++ "};"
 --        (init $ tail $ tail $ zipWith (++) [",vo" | x <- [0..]] (map show [0..gmax])) ++ "};"
         init_vos = (cadj_lists ++ voss)
 
         -- :init_vomax    const unsigned int vomax[4] = {3, 1, 1, 1};
-        init_vomax = "    const unsigned int vomax[" ++ (show glen) ++ "] = {" ++ (init $ tail $ show $ map length adj_lists) ++ "};"
+        init_vomax = "    const unsigned int vomax[" ++ (show glen) ++ "] = {" ++ (trim $ show $ map length adj_lists) ++ "};"
 
         -- :init_paths    unsigned int current_path[4];
         --                unsigned int adjacency_path[4];
-        init_paths = "    unsigned int current_path[" ++ (show glen) ++ "];\n unsigned int adjacency_path[" ++ show glen ++ "]:"
+        init_paths = "    unsigned int current_path[" ++ (show glen) ++ "];\n    unsigned int adjacency_path[" ++ show glen ++ "];"
 
         -- :init_fresh    unsigned char fresh[4] = {1,1,1,1};
         --                unsigned char inplay[4] = {1,1,1,1};
-        init_fresh = "unsigned char fresh[" ++ (show glen) ++ "] = {" ++ (show $ init $ tail $ replicate glen 1) ++ "};\nunsigned char inplay[" ++ (show glen) ++ "] = {" ++ (show $ init $ tail $ replicate glen 1) ++ "};"
+        init_fresh = "    unsigned char fresh[" ++ (show glen) ++ "] = {" ++ (trim $ show $ replicate glen 1) ++ "};\n    unsigned char inplay[" ++ (show glen) ++ "] = {" ++ (trim $ show $ replicate glen 1) ++ "};"
 
         -- :init_file     FILE * outfile = fopen("checking.txt", "w");
         init_file = "    FILE * outfile = fopen(\"" ++ outfilename ++ "\", \"w\");"
@@ -782,27 +802,39 @@ generateFindCyCode graph cfilename justCount = unlines $ map (\s -> formatByDict
 ------------------------------------------------------------------------------------------------------------------------------------------------------------
 ------------------------------------------------------------------------------------------------------------------------------------------------------------
 
-processCycles :: [Char] -> [[Int]] -> [[Int]]
-processCycles cycles_str graph = if (done /= "DONE.") || (graph /= (show graph))
-                                    then error "Output file is either unfinished or unmatched to the current graph."
-                                    else map (\l ->trimList $ read l :: [Int]) cycles
-  where
-    cycles = init $ tail $ lines cycles_str
-    graph  =        head $ lines cycles_str
-    done   =        last $ lines cycles_str
+-- processCycles :: [Char] -> [[Int]] -> [[Int]]
+-- processCycles cycles_str graph = if (done /= "DONE.") || (graph /= (show graph))
+                                    -- then error "Output file is either unfinished or unmatched to the current graph."
+                                    -- else map (\l ->trimList $ read l :: [Int]) cycles
+  -- where
+  --   cycles = trim $ lines cycles_str
+    -- graph  = head $ lines cycles_str
+    -- done   = last $ lines cycles_str
 
-graphToCycles :: [[Int]] -> IO [[Int]]
+--processCycles :: (Read a, Integral a) => IO [Char] -> [[Int]] -> IO [[a]]
+processCycles cycles_str graph = if good
+                                    then liftM (\s ->(map read_cy $ trim $ lines s)) cycles_str
+                                    else error "Output file is either unfinished or unmatched to the current graph."
+  where
+    good             = liftM2 (&&) finished good_graph
+    finished         = liftM (\s ->eq_done $ last $ lines s) cycles_str
+    eq_done s        = "DONE." == s
+    good_graph       = liftM (\s ->eq_graph graph $ head $ lines s) cycles_str
+    eq_graph graph s = (show graph) == s
+    read_cy cy       = trimList $ read cy
+
+--graphToCycles :: [[Int]] -> IO [[Int]]
 graphToCycles graphlist = do
-  let tempfilename = ".findcy_temp.c"
+  let tempfilename = "findcy_temp.c"
   let code = generateFindCyCode graphlist tempfilename False
   cfile <- openFile "findcy_temp.c" WriteMode
   write <- hPutStr cfile code
   hClose cfile
-  comp_results <- readProcess "gcc" [".findcy_temp.c", "-O3", "-o", "findcy_temp"] []
+  comp_results <- readProcess "gcc" ["findcy_temp.c", "-O3", "-o", "findcy_temp"] []
   putStrLn comp_results
   run_results <- readProcess "./findcy_temp" [] []
   putStrLn run_results
-  cycles_str <- catch (readFile ".findcy_temp.txt") handler
+  cycles_str <- catch (readFile "findcy_temp.txt") handler
   let cycles = processCycles cycles_str graphlist
   return cycles
     where
@@ -819,6 +851,7 @@ graphToMaxcyCode graphlist splitbits name = do
   mkdir_results <- readProcess "mkdir" [name] []
   putStrLn mkdir_results
   mapM_ writeC codelist
+  --putStrLn (map (liftM snd) codelist)
     where
       writeC :: IO (String, String) ->IO ()
       writeC input = do
@@ -834,7 +867,15 @@ graphToMaxcyCode graphlist splitbits name = do
             code  = liftM snd input :: IO String
 -- generateMaxCyCode graph cycles start end splitbits
 
+k4g :: [[Int]]
+k4g = [[0,1],[0,2],[0,3],[1,2],[1,3],[2,3]]
 
+k4c :: [[Int]]
+k4c = [[0,1,2,0],[0,1,2,3],[0,1,3,0],[0,1,3,2],[0,2,1,0],[0,2,1,3],[0,2,3,0],[0,2,3,1],[0,3,1,0],[0,3,1,2],[0,3,2,0],[0,3,2,1],[1,2,3,0],[1,3,2,0]]
+
+--main :: IO ()
+--main = graphToMaxcyCode k4g 0 "testt"
+main = graphToCycles k4g
 
 ------------------------------------------------------------------------------------------------------------------------------------------------------------
 ------------------------------------------------------------------------------------------------------------------------------------------------------------
