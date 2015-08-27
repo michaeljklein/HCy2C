@@ -15,6 +15,18 @@ import Text.Regex
 import Data.Typeable
 import System.IO.Unsafe
 
+--For cleaning up files
+--http://stackoverflow.com/questions/8502201/remove-file-if-it-exists
+import Prelude hiding (catch)
+import System.Directory
+import System.IO.Error hiding (catch)
+
+removeIfExists :: FilePath -> IO ()
+removeIfExists fileName = removeFile fileName `catch` handleExists
+  where handleExists e
+         | isDoesNotExistError e = return ()
+         | otherwise = throwIO e
+
 ---------------------------------------------------------------------------------------------------------------------------------------
 -------------------------------------------------------------------------------------------------------------------------------------
 --      TODO:
@@ -562,23 +574,28 @@ generateFindCyCode graph cfilename justCount = unlines $ map (\s -> formatByDict
         maxd = digLen10 glen
         outfilename = (init cfilename) ++ "txt"
 
-        dict = [(":init_lookup",  init_lookup),
-                (":init_str",     init_str),
-                (":init_strs",    init_strs),
-                (":fwrite_str",   fwrite_str),
+        dict = [(":print_cycle",   print_cycle),
+                (":init_lookup",   init_lookup),
+                (":init_str",      init_str),
+                (":init_strs",     init_strs),
+                (":fwrite_str",    fwrite_str),
                 -- (":adj_lists",    adj_lists),
                 -- (":cadj_lists",   cadj_lists),
-                (":voss",         voss),
-                (":init_vos",     init_vos),
-                (":init_vomax",   init_vomax),
-                (":init_paths",   init_paths),
-                (":init_fresh",   init_fresh),
-                (":init_file",    init_file),
-                (":fwrite_graph", fwrite_graph),
-                (":assign_fresh", assign_fresh),
-                (":assign_cpath", assign_cpath),
-                (":assign_apath", assign_apath),
-                (":fwrite_finish",fwrite_finish)]
+                (":voss",          voss),
+                (":init_vos",      init_vos),
+                (":init_vomax",    init_vomax),
+                (":init_paths",    init_paths),
+                (":init_fresh",    init_fresh),
+                (":init_file",     init_file),
+                (":fwrite_graph",  fwrite_graph),
+                (":assign_fresh",  assign_fresh),
+                (":assign_cpath",  assign_cpath),
+                (":assign_apath",  assign_apath),
+                (":put_cycle",     put_cycle),
+                (":fwrite_finish", fwrite_finish)]
+
+        --"void print_cycle(outfileFILE * outfile, unsigned int * this_current_path){",
+        print_cycle = if not justCount then "void print_cycle(FILE * outfile, unsigned int * this_current_path){" else "void print_cycle(unsigned int * this_current_path){"
 
         -- :init_lookup   char lookup[4][1] = {"0","1","2","3"};
         init_lookup_list = "    char lookup[" ++ (show glen) ++ "][" ++ (show maxd) ++ "] = {" ++ (tail $ init $ show vallist) ++ "};"
@@ -606,7 +623,8 @@ generateFindCyCode graph cfilename justCount = unlines $ map (\s -> formatByDict
         init_str    = if not justCount then init_str_list else ""
         init_strs   = if not justCount then init_strs_list else ""
         fwrite_str  = if not justCount then fwrite_str_list else "    count++;"
-
+        init_file   = if not justCount then init_file_write else ""
+        fwrite_graph= if not justCount then fwrite_graph_write else ""
         {- :init_vos
                           const unsigned int vo0[3] = {1, 2, 3};
                           const unsigned int vo1[1] = {2};
@@ -633,10 +651,10 @@ generateFindCyCode graph cfilename justCount = unlines $ map (\s -> formatByDict
         init_fresh = "    unsigned char fresh[" ++ (show glen) ++ "] = {" ++ (trim $ show $ replicate glen 1) ++ "};\n    unsigned char inplay[" ++ (show glen) ++ "] = {" ++ (trim $ show $ replicate glen 1) ++ "};"
 
         -- :init_file     FILE * outfile = fopen("checking.txt", "w");
-        init_file = "    FILE * outfile = fopen(\"" ++ outfilename ++ "\", \"w\");"
+        init_file_write = "    FILE * outfile = fopen(\"" ++ outfilename ++ "\", \"w\");"
 
         -- :fwrite_graph  fwrite("[[0,1],[0,2],[0,3],[1,2],[3,1],[2,3]]\n",1,39,outfile);
-        fwrite_graph = "    fwrite(\"" ++ (show graph) ++ "\\n\", 1," ++ (show $ (length' $ '0':(show graph))) ++ ",outfile);"
+        fwrite_graph_write = "    fwrite(\"" ++ (show graph) ++ "\\n\", 1," ++ (show $ (length' $ '0':(show graph))) ++ ",outfile);"
 
         -- :assign_fresh  fresh[0] = inplay[0]; fresh[1] = inplay[1]; fresh[2] = inplay[2]; fresh[3] = inplay[3];
         assign_fresh = "    " ++ (concat $ map (\i -> "fresh[" ++ show i ++ "] = inplay[" ++ show i ++ "]; ") [0..(glen - 1)])
@@ -647,13 +665,18 @@ generateFindCyCode graph cfilename justCount = unlines $ map (\s -> formatByDict
         -- :assign_apath  adjacency_path[0] = 0; adjacency_path[1] = 0; adjacency_path[2] = 0; adjacency_path[3] = 0;,
         assign_apath = "    " ++ (concat $ map (\i -> "adjacency_path[" ++ show i ++ "] = 0; ") [0..(glen-1)])
 
+        --"                                    print_cycle(outfile, current_path);",
+        put_cycle = if not justCount then "                                    print_cycle(outfile, current_path);" else "                                    print_cycle(current_path);"
+
         -- :fwrite_finish            fwrite(\"DONE.\", 1, 5, outfile);
         fwrite_finish = if not justCount
-                           then "            fwrite(\"DONE.\", 1, 5, outfile);"
-                           else "            char cstr[21];\n            sprintf(cstr, \"%20llu\n\", count);\n            fwrite(str, 1, 21, outfile);\n            fwrite(\"DONE.\", 1, 5, outfile);"
+                           then "            fwrite(\"DONE.\", 1, 5, outfile);\n            fclose(outfile);"
+                           else "            printf(\"%llu\\n\", count);\n"--            fwrite(str, 1, 21, outfile);\n            fwrite(\"DONE.\", 1, 5, outfile);"
         codelist = ["#include <stdio.h>",
+                    "unsigned long long count = 0;",
                     "",
-                    "void print_cycle(FILE * outfile, unsigned int * this_current_path){",
+                    --"void print_cycle(outfileFILE * outfile, unsigned int * this_current_path){",
+                    ":print_cycle",
                     ":init_lookup",
                     ":init_str",
                     ":init_strs",
@@ -671,7 +694,6 @@ generateFindCyCode graph cfilename justCount = unlines $ map (\s -> formatByDict
                     "}",
                     "",
                     "int main(int argc, const char * argv[]) {",
-                    "    unsigned long long count = 0;",
                     ":init_vos",
                     ":init_vomax",
                     {- :init_vos
@@ -727,7 +749,8 @@ generateFindCyCode graph cfilename justCount = unlines $ map (\s -> formatByDict
                     "                    if (possible_fresh_adjacency != local_max) {",
                     "                        if (possible_fresh == start) {",
                     "                                if (path_position > 1) {",
-                    "                                    print_cycle(outfile, current_path);",
+                    --"                                    print_cycle(outfile, current_path);",
+                    ":put_cycle",
                     "                                } else {",
                     "                                        ;",
                     "                                }",
@@ -752,7 +775,8 @@ generateFindCyCode graph cfilename justCount = unlines $ map (\s -> formatByDict
                     "                    possible_fresh = vos[current_path[path_position]][possible_fresh_adjacency];",
                     "                    if (possible_fresh == start) {",
                     "                            if (path_position > 1) {",
-                    "                                    print_cycle(outfile, current_path);",
+                    --"                                    print_cycle(outfile, current_path);",
+                    ":put_cycle",
                     "                            } else {",
                     "                                    ;",
                     "                            }",
@@ -789,7 +813,6 @@ generateFindCyCode graph cfilename justCount = unlines $ map (\s -> formatByDict
                     "",
                     ":fwrite_finish",
                     --"            fwrite(\"DONE.\", 1, 5, outfile);",
-                    "            fclose(outfile);",
                     "            return 0;",
                     "    }",
                     "    return 0;",
@@ -806,16 +829,24 @@ generateFindCyCode graph cfilename justCount = unlines $ map (\s -> formatByDict
 ------------------------------------------------------------------------------------------------------------------------------------------------------------
 ------------------------------------------------------------------------------------------------------------------------------------------------------------
 
--- processCycles :: [Char] -> [[Int]] -> [[Int]]
--- processCycles cycles_str graph = if (done /= "DONE.") || (graph /= (show graph))
-                                    -- then error "Output file is either unfinished or unmatched to the current graph."
-                                    -- else map (\l ->trimList $ read l :: [Int]) cycles
-  -- where
-  --   cycles = trim $ lines cycles_str
-    -- graph  = head $ lines cycles_str
-    -- done   = last $ lines cycles_str
-
+ifElseError :: Bool -> t -> t
 ifElseError bool thn = if bool then thn else error "Output file unfinished or unmatched to graph."
+
+graphToNumCycles :: [[Int]] -> IO Int
+graphToNumCycles graphlist = do
+  removeIfExists "countcy_temp.c"
+  removeIfExists "countcy_temp"
+  let tempfilename = "countcy_temp.c"
+  let code = generateFindCyCode graphlist tempfilename True
+  cfile <- openFile "countcy_temp.c" WriteMode
+  write <- hPutStr cfile code
+  hClose cfile
+  comp_results <- readProcess "gcc" ["countcy_temp.c", "-O3", "-o", "countcy_temp"] []
+  when ((length comp_results) > 1) (putStrLn comp_results)
+  run_results <- readProcess "./countcy_temp" [] []
+  let numcy = read run_results :: Int
+  when ((length run_results) > 12) (putStrLn ("results:" ++ run_results)) -- magic number 6 is one less than the shortest c error I found after little checking
+  return numcy
 
 processCycles :: [Char] -> [[Int]] -> [[Int]]
 processCycles cycles_string graph = ifElseError good ((\s ->(map read_cy $ trim $ lines s)) cycles_string)
@@ -831,8 +862,11 @@ processCycles cycles_string graph = ifElseError good ((\s ->(map read_cy $ trim 
     eq_graph graph s = (show graph) == s
     read_cy cy       = trimList $ read cy
 
---graphToCycles :: [[Int]] -> IO [[Int]]
+graphToCycles :: [[Int]] -> IO [[Int]]
 graphToCycles graphlist = do
+  removeIfExists "findcy_temp.c"
+  removeIfExists "findcy_temp"
+  removeIfExists "findcy_temp.txt"
   let tempfilename = "findcy_temp.c"
   let code = generateFindCyCode graphlist tempfilename False
   cfile <- openFile "findcy_temp.c" WriteMode
@@ -881,11 +915,10 @@ k4g = [[0,1],[0,2],[0,3],[1,2],[1,3],[2,3]]
 k4c :: [[Int]]
 k4c = [[0,1,2,0],[0,1,2,3],[0,1,3,0],[0,1,3,2],[0,2,1,0],[0,2,1,3],[0,2,3,0],[0,2,3,1],[0,3,1,0],[0,3,1,2],[0,3,2,0],[0,3,2,1],[1,2,3,0],[1,3,2,0]]
 
---main :: IO ()
---main = graphToMaxcyCode k4g 0 "testt"
+main :: IO ()
 main = do
 --  a <- putStrLn $ liftM show $ typeOf processCycles
-  let out_string = show $ unsafePerformIO (graphToCycles k4g)
+  let out_string = show $ unsafePerformIO $ graphToCycles $ completeGraph 4
   putStr $ out_string
   putStrLn "\nDone."
 
@@ -906,4 +939,17 @@ printULLs l = unlines $  map (\x -> show $ map listFromULL x) l
 
 sortBySnd :: Ord b => [(a,b)] -> [(a,b)]
 sortBySnd list = sortBy (\a b -> compare (snd a) (snd b)) list
+
+completeGraph :: Integral a => a -> [[a]]
+completeGraph n = [[a,b] | a <- [0..n-1], b <- [0..n-1], a<b]
+
+-- processCycles :: [Char] -> [[Int]] -> [[Int]]
+-- processCycles cycles_str graph = if (done /= "DONE.") || (graph /= (show graph))
+                                    -- then error "Output file is either unfinished or unmatched to the current graph."
+                                    -- else map (\l ->trimList $ read l :: [Int]) cycles
+  -- where
+  --   cycles = trim $ lines cycles_str
+    -- graph  = head $ lines cycles_str
+    -- done   = last $ lines cycles_str
+
 

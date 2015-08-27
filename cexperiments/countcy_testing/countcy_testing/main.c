@@ -1,23 +1,19 @@
+//
+//  main.c
+//  countcy_testing
+//
+//  Created by Michael Klein on 8/26/15.
+//  Copyright (c) 2015 Michael Klein. All rights reserved.
+//
+
 #include <stdio.h>
     unsigned long long count = 0;
 
-void print_cycle(FILE * outfile, unsigned int * this_current_path){
-    char lookup[6][1] = {"0","1","2","3","4","5"};
-    char str[14] = "[_,_,_,_,_,_]\n";
-    str[1] = lookup[this_current_path[0]][0];
-
-    str[3] = lookup[this_current_path[1]][0];
-
-    str[5] = lookup[this_current_path[2]][0];
-
-    str[7] = lookup[this_current_path[3]][0];
-
-    str[9] = lookup[this_current_path[4]][0];
-
-    str[11] = lookup[this_current_path[5]][0];
+void print_cycle(unsigned int * this_current_path){
 
 
-    fwrite(str, 1, 14, outfile);
+
+    count++;
 }
 
 int main(int argc, const char * argv[]) {
@@ -41,8 +37,8 @@ int main(int argc, const char * argv[]) {
     register unsigned int possible_fresh;
     register unsigned int possible_fresh_adjacency;
     register unsigned int local_max;
-    FILE * outfile = fopen("findcy_temp.txt", "w");
-    fwrite("[[0,1],[0,2],[0,3],[1,2],[1,3],[2,3]]\n", 1,38,outfile);
+
+
 
     starter_loop:
     if (start != 2 ) {
@@ -62,7 +58,7 @@ int main(int argc, const char * argv[]) {
                     if (possible_fresh_adjacency != local_max) {
                         if (possible_fresh == start) {
                                 if (path_position > 1) {
-                                    print_cycle(outfile, current_path);
+                                    print_cycle(current_path);
                                 } else {
                                         ;
                                 }
@@ -87,7 +83,7 @@ int main(int argc, const char * argv[]) {
                     possible_fresh = vos[current_path[path_position]][possible_fresh_adjacency];
                     if (possible_fresh == start) {
                             if (path_position > 1) {
-                                    print_cycle(outfile, current_path);
+                                    print_cycle(current_path);
                             } else {
                                     ;
                             }
@@ -121,9 +117,10 @@ int main(int argc, const char * argv[]) {
         start++;
         goto starter_loop;
     } else {
+    
+//            char cstr[21];
+            printf("%llu\n", count);
 
-            fwrite("DONE.", 1, 5, outfile);
-            fclose(outfile);
             return 0;
     }
     return 0;
