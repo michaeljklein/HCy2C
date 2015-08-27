@@ -302,10 +302,10 @@ generateMaxCyCode graph cycles start end splitbits = (unlines $ map (\s -> forma
         aarray = addULLs ("unsigned long long int A[" ++ (show $ length graph) ++ "][" ++ (show $ length $ head aalist) ++ "] = " ++ (replace "]" "}" (replace "[" "{" (show aalist))) ++ ";")
 
         --":fops_true" A[i][0] = A[i-1][0] & C[i][0];
-        fops_true  = unlines $ map (\j -> "        A[i][" ++ (show j) ++ "] = A[i-1][" ++ show j ++ "] & C[i][" ++ show j ++ "];")  [0..(length' $ head aalist)]
+        fops_true  = unlines $ map (\j -> "        A[i][" ++ (show j) ++ "] = A[i-1][" ++ show j ++ "] & C[i][" ++ show j ++ "];")  [0..(length' $ init $ head aalist)]
 
         --":fops_false"  A[i][0] = A[i-1][0] & D[i][0];
-        fops_false = unlines $ map (\j -> "        A[i][" ++ (show j) ++ "] = A[i-1][" ++ show j ++ "] & D[i][" ++ show j ++ "];")  [0..(length' $ head aalist)]
+        fops_false = unlines $ map (\j -> "        A[i][" ++ (show j) ++ "] = A[i-1][" ++ show j ++ "] & D[i][" ++ show j ++ "];")  [0..(length' $ init $ head aalist)]
 
         --":counter"    this += counter(A[maxpos][0]);
         counter = unlines $ map (\i -> concat ["    this += counter(A[maxpos][", show i, "]);"]) [0..(length $ tail $ head aalist)]
@@ -487,7 +487,7 @@ generateMaxCyCode graph cycles start end splitbits = (unlines $ map (\s -> forma
             "        i = 1;",
             "        r();",
             "    }",
-            "    fwrite(\"FINISHED\", 1, 9, fout);",
+            "    fwrite(\"FINISHED.\", 1, 9, fout);",
             "    fclose(fout);",
             "    return 0;",
             "}",
@@ -883,26 +883,43 @@ graphToCycles graphlist = do
       handler :: SomeException -> IO String
       handler _ = error "The results have disappeared under my nose."
 
-graphToMaxcyCode :: [[Int]] -> Int -> [Char] -> IO ()
+--graphToMaxcyCode :: [[Int]] -> Int -> [Char] -> [Char] -- IO ()
 graphToMaxcyCode graphlist splitbits name = do
+  putStrLn "1"
   let cycles = graphToCycles graphlist
+  putStrLn "2"
   let endhere = splitbits + 1
 -- ???????????????????????
+  putStrLn "3"
   let startmap = \start ->liftM (\cy -> (show start, fst $ generateMaxCyCode graphlist cy start endhere splitbits)) cycles
   let codelist = map startmap  [0..(2^splitbits)-1] :: [IO (String, String)]
-  mkdir_results <- readProcess "mkdir" [name] []
-  putStrLn mkdir_results
-  mapM_ writeC codelist
+  --mkdir_results <- readProcess "mkdir" [name] []
+  putStrLn "4"
+  --putStrLn mkdir_results
+  writeC (head codelist)
+  --map_results <- mapM_ writeC codelist
   --putStrLn (map (liftM snd) codelist)
+  return "Done."
     where
       writeC :: IO (String, String) ->IO ()
       writeC input = do
+        putStrLn ("start:" ++ (unsafePerformIO start))
         let maxfilenum = (2^splitbits)-1
+        putStrLn "5"
         let outfilenamefun = \s ->name ++ "/runner_" ++ s ++ "_" ++ (show maxfilenum) ++ ".c"
+        putStrLn "6"
         let outfilename = liftM outfilenamefun start
+        putStrLn $ "7" ++ (unsafePerformIO outfilename)
         outfile <- liftM (\filename ->openFile filename WriteMode) outfilename
-        writetofile <- liftM2 hPutStr outfile code
-        closeout <- liftM hClose outfile
+        putStrLn "8"
+        --putStrLn $ unsafePerformIO code
+        --writetofile <- liftM2 hPutStr outfile code
+        --  I think that unsafePerformIO is ok here because the file being written is not touched by any other writing/reading operation.
+        writetofile <- hPutStr (unsafePerformIO outfile) (unsafePerformIO code)
+        putStrLn "9"
+        --  It seems that Haskell will automatically close this file (it is closed by the end of the operation)
+        --  Additionally, as above, the file in question will not be accessed after this point.
+        --closeout <- liftM hClose outfile
         return ()
           where
             start = liftM fst input :: IO String
@@ -918,8 +935,10 @@ k4c = [[0,1,2,0],[0,1,2,3],[0,1,3,0],[0,1,3,2],[0,2,1,0],[0,2,1,3],[0,2,3,0],[0,
 main :: IO ()
 main = do
 --  a <- putStrLn $ liftM show $ typeOf processCycles
-  let out_string = show $ unsafePerformIO $ graphToCycles $ completeGraph 4
-  putStr $ out_string
+--  let out_string = show $ unsafePerformIO $ graphToCycles $ completeGraph 4
+--  putStr $ out_string
+  let str = graphToMaxcyCode (completeGraph 4) 0 "ttest"
+  putStrLn $ unsafePerformIO str
   putStrLn "\nDone."
 
 ------------------------------------------------------------------------------------------------------------------------------------------------------------

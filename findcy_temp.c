@@ -1,5 +1,5 @@
 #include <stdio.h>
-    unsigned long long count = 0;
+unsigned long long count = 0;
 
 void print_cycle(FILE * outfile, unsigned int * this_current_path){
     char lookup[6][1] = {"0","1","2","3","4","5"};
