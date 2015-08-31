@@ -6,6 +6,7 @@ import Data.List.Split
 import Data.Maybe
 import Data.String.Utils
 import Foreign.C.Types
+import System.Directory
 import System.IO
 import System.Process
 import Text.Regex
@@ -27,6 +28,12 @@ removeIfExists fileName = removeFile fileName `catch` handleExists
          | isDoesNotExistError e = return ()
          | otherwise = throwIO e
 
+removeDirIfExists :: FilePath -> IO ()
+removeDirIfExists foldername = removeDirectoryRecursive foldername `catch` handleExists
+  where handleExists e
+         | isDoesNotExistError e = return ()
+         | otherwise = throwIO e
+
 ---------------------------------------------------------------------------------------------------------------------------------------
 -------------------------------------------------------------------------------------------------------------------------------------
 --      TODO:
@@ -36,15 +43,15 @@ removeIfExists fileName = removeFile fileName `catch` handleExists
 --
 --      profile!:
 --              consider whether to optimize r() further
---              consider rolling my own 'sprinter' (should be a peice of cake, but maybe not worth it)
---                  use "str[i] = X[i] ^ 48" (48 is '0', 49 is '1')
+--              consider rolling my own 'sprinter' (should be a peice of cake, but maybe not worth it) DONE
+--                  use "str[i] = X[i] ^ 48" (48 is '0', 49 is '1') DONE
 --                  use "A ^ B" instead of "A /= B"
---                  instead of "this = 0;\n this += ...", use "this = a + b + c;"
---                  get rid of "if (this < best)" case
+--                  instead of "this = 0;\n this += ...", use "this = a + b + c;" NO, because that would require an additional register?
+--                  get rid of "if (this < best)" case DONE
 --              NO-LONGER:use papi get_real_cycles() to interpolate the number of cpu-cycles for a e-edge, c-cycle graph
 --                  use "#include <x86intrin.h>" and "unsigned long long c0 = __rdtsc();" unstead of papi.
 --              write-up number of steps (something like ceiling(forms/64)*2^numedges) and find constant of ~how many cycles per asympt. step
---                profile and lightly optimize the haskell code
+--                profile and lightly optimize the haskell code -> current state: ghc breaks the printing of 2nd/2 code files and ghci works
 --
 --      (long)
 --              write an interface to compile, run and feedback results into haskell
@@ -314,7 +321,7 @@ generateMaxCyCode graph cycles start end splitbits = (unlines $ map (\s -> forma
         sprinter = "        sprintf(str, \"[" ++ (concat $ replicate' "%d" (length graph)) ++ ",%5d]\\n\", " ++ (concat (map (\x -> concat ["X[",show x,"],"]) [0..(-1 + length graph)])) ++ "this );"
 
         --":fout"    fout = fopen("test_0_0_out.txt", "w");
-        fout = "    fout = fopen(\"test_" ++ (show start) ++ "_" ++ (show twotothesplitbits) ++ "_out.txt\", \"w\");"
+        fout = "    fout = fopen(\"runner_" ++ (show start) ++ "_" ++ (show twotothesplitbits) ++ "_out.txt\", \"w\");"
 
         --":fputs"    fputs("[[0, 1], [1, 2], [0, 2]]\n", fout);
         fputs = "    fputs(\"" ++ (show graph) ++ "\\n\", fout);"
@@ -883,6 +890,12 @@ graphToCycles graphlist = do
       handler :: SomeException -> IO String
       handler _ = error "The results have disappeared under my nose."
 
+--myMapM_ :: (t -> t1) -> [t] -> ()
+-- myMapM_ f []     = ()
+-- myMapM_ f (x:xs) = do
+--   evaluate $ f x
+--   liftM2 myMapM_ f xs
+
 --graphToMaxcyCode :: [[Int]] -> Int -> [Char] -> [Char] -- IO ()
 graphToMaxcyCode graphlist splitbits name = do
   putStrLn "1"
@@ -893,37 +906,47 @@ graphToMaxcyCode graphlist splitbits name = do
   putStrLn "3"
   let startmap = \start ->liftM (\cy -> (show start, fst $ generateMaxCyCode graphlist cy start endhere splitbits)) cycles
   let codelist = map startmap  [0..(2^splitbits)-1] :: [IO (String, String)]
-  --mkdir_results <- readProcess "mkdir" [name] []
+  removeDirIfExists name
+  mkdir_results <- readProcess "mkdir" [name] []
   putStrLn "4"
   --putStrLn mkdir_results
-  writeC (head codelist)
-  --map_results <- mapM_ writeC codelist
-  --putStrLn (map (liftM snd) codelist)
+  --writeC (head codelist)
+  --putStrLn $ show $ map unsafePerformIO codelist
+  mapM_ writeC codelist
   return "Done."
     where
-      writeC :: IO (String, String) ->IO ()
+      -- writeC :: IO (String, String) ->IO (IO ())
       writeC input = do
-        putStrLn ("start:" ++ (unsafePerformIO start))
-        let maxfilenum = (2^splitbits)-1
+        start <- input >>= return . fst :: IO [Char]
+        code <- input >>= return . snd :: IO [Char]
+        startline <- return $ (\st ->"start:" ++ st) start
+        putStrLn startline
+        let maxfilenum = (2^splitbits)
         putStrLn "5"
-        let outfilenamefun = \s ->name ++ "/runner_" ++ s ++ "_" ++ (show maxfilenum) ++ ".c"
+        let outfilenamefun = \s ->name ++ "/runner_" ++ s ++ "_" ++ (show (maxfilenum - 1)) ++ ".c"
         putStrLn "6"
-        let outfilename = liftM outfilenamefun start
-        putStrLn $ "7" ++ (unsafePerformIO outfilename)
-        outfile <- liftM (\filename ->openFile filename WriteMode) outfilename
+        let outfilename = outfilenamefun start
+        -- putStrLn $ "7" ++ (unsafePerformIO outfilename)
+        outfilenameline <- return $ (\ofn ->"7\n" ++ ofn) outfilename
+        putStrLn outfilenameline
+        outfile <- (\filename ->openFile filename WriteMode) outfilename
         putStrLn "8"
         --putStrLn $ unsafePerformIO code
         --writetofile <- liftM2 hPutStr outfile code
         --  I think that unsafePerformIO is ok here because the file being written is not touched by any other writing/reading operation.
-        writetofile <- hPutStr (unsafePerformIO outfile) (unsafePerformIO code)
+        -- writetofile <- hPutStr (unsafePerformIO outfile) (unsafePerformIO code)
+        -- hPutStr (unsafePerformIO outfile) (unsafePerformIO code)
+        hPutStr outfile code
         putStrLn "9"
         --  It seems that Haskell will automatically close this file (it is closed by the end of the operation)
         --  Additionally, as above, the file in question will not be accessed after this point.
-        --closeout <- liftM hClose outfile
-        return ()
-          where
-            start = liftM fst input :: IO String
-            code  = liftM snd input :: IO String
+        hClose outfile
+        -- return (outfile >>= hClose)
+        return start
+        -- return ()
+          -- where
+          --   start = liftM fst input :: IO String
+            -- code  = liftM snd input :: IO String
 -- generateMaxCyCode graph cycles start end splitbits
 
 k4g :: [[Int]]
@@ -937,7 +960,7 @@ main = do
 --  a <- putStrLn $ liftM show $ typeOf processCycles
 --  let out_string = show $ unsafePerformIO $ graphToCycles $ completeGraph 4
 --  putStr $ out_string
-  let str = graphToMaxcyCode (completeGraph 4) 0 "ttest"
+  let str = graphToMaxcyCode (completeGraph 6) 1 "ttest"
   putStrLn $ unsafePerformIO str
   putStrLn "\nDone."
 
