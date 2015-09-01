@@ -898,20 +898,18 @@ graphToCycles graphlist = do
 
 --graphToMaxcyCode :: [[Int]] -> Int -> [Char] -> [Char] -- IO ()
 graphToMaxcyCode graphlist splitbits name = do
-  putStrLn "1"
+  -- putStrLn "1"
   let cycles = graphToCycles graphlist
-  putStrLn "2"
+  -- putStrLn "2"
   let endhere = splitbits + 1
 -- ???????????????????????
-  putStrLn "3"
+  -- putStrLn "3"
   let startmap = \start ->liftM (\cy -> (show start, fst $ generateMaxCyCode graphlist cy start endhere splitbits)) cycles
   let codelist = map startmap  [0..(2^splitbits)-1] :: [IO (String, String)]
   removeDirIfExists name
   mkdir_results <- readProcess "mkdir" [name] []
-  putStrLn "4"
-  --putStrLn mkdir_results
+  -- putStrLn "4"
   --writeC (head codelist)
-  --putStrLn $ show $ map unsafePerformIO codelist
   mapM_ writeC codelist
   return "Done."
     where
@@ -919,34 +917,21 @@ graphToMaxcyCode graphlist splitbits name = do
       writeC input = do
         start <- input >>= return . fst :: IO [Char]
         code <- input >>= return . snd :: IO [Char]
-        startline <- return $ (\st ->"start:" ++ st) start
-        putStrLn startline
+        -- startline <- return $ (\st ->"start:" ++ st) start
+        -- putStrLn startline
         let maxfilenum = (2^splitbits)
-        putStrLn "5"
+        -- putStrLn "5"
         let outfilenamefun = \s ->name ++ "/runner_" ++ s ++ "_" ++ (show (maxfilenum - 1)) ++ ".c"
-        putStrLn "6"
+        -- putStrLn "6"
         let outfilename = outfilenamefun start
-        -- putStrLn $ "7" ++ (unsafePerformIO outfilename)
-        outfilenameline <- return $ (\ofn ->"7\n" ++ ofn) outfilename
-        putStrLn outfilenameline
+        -- outfilenameline <- return $ (\ofn ->"7\n" ++ ofn) outfilename
+        -- putStrLn outfilenameline
         outfile <- (\filename ->openFile filename WriteMode) outfilename
-        putStrLn "8"
-        --putStrLn $ unsafePerformIO code
-        --writetofile <- liftM2 hPutStr outfile code
-        --  I think that unsafePerformIO is ok here because the file being written is not touched by any other writing/reading operation.
-        -- writetofile <- hPutStr (unsafePerformIO outfile) (unsafePerformIO code)
-        -- hPutStr (unsafePerformIO outfile) (unsafePerformIO code)
+        -- putStrLn "8"
         hPutStr outfile code
-        putStrLn "9"
-        --  It seems that Haskell will automatically close this file (it is closed by the end of the operation)
-        --  Additionally, as above, the file in question will not be accessed after this point.
+        -- putStrLn "9"
         hClose outfile
-        -- return (outfile >>= hClose)
         return start
-        -- return ()
-          -- where
-          --   start = liftM fst input :: IO String
-            -- code  = liftM snd input :: IO String
 -- generateMaxCyCode graph cycles start end splitbits
 
 k4g :: [[Int]]
@@ -994,4 +979,90 @@ completeGraph n = [[a,b] | a <- [0..n-1], b <- [0..n-1], a<b]
     -- graph  = head $ lines cycles_str
     -- done   = last $ lines cycles_str
 
+makeAsmCounter4 :: Int -> [Char]
+makeAsmCounter4 j = unlines  ["    __asm__("
+                              "            \"popcnt %4, %4 \\n\\t\""
+                              "            \"add %4, %0    \\n\\t\""
+                              "            \"popcnt %5, %5 \\n\\t\""
+                              "            \"add %5, %1    \\n\\t\""
+                              "            \"popcnt %6, %6 \\n\\t\""
+                              "            \"add %6, %2    \\n\\t\""
+                              "            \"popcnt %7, %7 \\n\\t\""
+                              "            \"add %7, %3    \\n\\t\""
+                              "            : \"+r\" (cnt[" ++ j0 ++ "]), \"+r\" (cnt[" ++ j1 ++ "]), \"+r\" (cnt[" ++ j2 ++ "]), \"+r\" (cnt[" ++ j3 ++ "])"
+                              "            : \"r\" (buf[" ++ j0 ++ "]), \"r\" (buf[" ++ j1 ++ "]), \"r\" (buf[" ++ j2 ++ "]), \"r\" (buf[" ++ j3 ++ "]));"]
+  where
+    j0 = show (j+0)
+    j1 = show (j+1)
+    j2 = show (j+2)
+    j3 = show (j+3)
 
+makeAsmCounter2 :: Int -> [Char]
+makeAsmCounter2 j = unlines  ["    __asm__("
+                              "            \"popcnt %2, %2  \\n\\t\""
+                              "            \"add %2, %0     \\n\\t\""
+                              "            \"popcnt %3, %3  \\n\\t\""
+                              "            \"add %3, %1     \\n\\t\""
+                              "            : \"+r\" (cnt[" ++ j0 ++ "]), \"+r\" (cnt[" ++ j1 ++ "])"
+                              "            : \"r\" (buf[" ++ j0 ++ "]), \"r\" (buf[" ++ j1 ++ "]));"]
+  where
+    j0 = show (j+0)
+    j1 = show (j+1)
+
+makeAsmCounter1 :: Int -> [Char]
+makeAsmCounter1 j = unlines  ["    __asm__("
+                              "           \"popcnt %1, %1  \\n\\t\""
+                              "           \"add %1, %0     \\n\\t\""
+                              "            : \"+r\" (cnt[" ++ j0 ++ "])"
+                              "            : \"r\" (buf[" ++ j0 ++ "]));"]
+  where
+    j0 = show (j+0)
+
+makeAsmCounterN :: Int -> [Char]
+makeAsmCounterN n = expand ([], 0, n)
+    where
+      expand (code, at, max)
+          | (max - at) >= 4 = expand (code ++ (makeAsmCounter4 at), at + 4, max)
+          | (max - at) >= 2 = expand (code ++ (makeAsmCounter2 at), at + 2, max)
+          | (max - at) >= 1 = expand (code ++ (makeAsmCounter1 at), at + 1, max)
+          | otherwise      = unlines code
+
+makeAsmCounter n = unlines ["int counter (uint64_t * buf){",
+                            "    uint64_t cnt[" ++ (show n) ++ "];",
+                            unlines ["        cnt[" ++ (show i) ++ "] = 0;" | i <- [0..n]],
+                            makeAsmCounterN n,
+                            "",
+                            unlines $ "    return cnt[0] + " : ["cnt[" ++ (show k) ++ "] + " | k <- [1..(n-1)]] ++ [";"],
+                            "}"]
+
+-- int counter2 (uint64_t* buf){
+--     uint64_t cnt[buflen];
+--     for (int i = 0; i < (buflen); i++) {
+--         cnt[i] = 0;
+--     }
+--     __asm__(
+--             "popcnt %4, %4  \n\t"
+--             "add %4, %0     \n\t"
+--             "popcnt %5, %5  \n\t"
+--             "add %5, %1     \n\t"
+--             "popcnt %6, %6  \n\t"
+--             "add %6, %2     \n\t"
+--             "popcnt %7, %7  \n\t"
+--             "add %7, %3     \n\t" // +r means input/output, r means intput
+--             : "+r" (cnt[0]), "+r" (cnt[1]), "+r" (cnt[2]), "+r" (cnt[3])
+--             : "r"  (buf[0]), "r"  (buf[1]), "r"  (buf[2]), "r"  (buf[3]));
+--     __asm__(
+--             "popcnt %2, %2  \n\t"
+--             "add %2, %0     \n\t"
+--             "popcnt %3, %3  \n\t"
+--             "add %3, %1     \n\t"
+--             : "+r" (cnt[4]), "+r" (cnt[5])
+--             : "r"  (buf[4]), "r"  (buf[5]));
+--     __asm__(
+--             "popcnt %1, %1  \n\t"
+--             "add %1, %0     \n\t"
+--             : "+r" (cnt[6])
+--             : "r"  (buf[6]));
+
+--     return cnt[0] + cnt[1] + cnt[2] + cnt[3] + cnt[4] + cnt[5] + cnt[6];
+-- }
