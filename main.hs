@@ -980,16 +980,16 @@ completeGraph n = [[a,b] | a <- [0..n-1], b <- [0..n-1], a<b]
     -- done   = last $ lines cycles_str
 
 makeAsmCounter4 :: Int -> [Char]
-makeAsmCounter4 j = unlines  ["    __asm__("
-                              "            \"popcnt %4, %4 \\n\\t\""
-                              "            \"add %4, %0    \\n\\t\""
-                              "            \"popcnt %5, %5 \\n\\t\""
-                              "            \"add %5, %1    \\n\\t\""
-                              "            \"popcnt %6, %6 \\n\\t\""
-                              "            \"add %6, %2    \\n\\t\""
-                              "            \"popcnt %7, %7 \\n\\t\""
-                              "            \"add %7, %3    \\n\\t\""
-                              "            : \"+r\" (cnt[" ++ j0 ++ "]), \"+r\" (cnt[" ++ j1 ++ "]), \"+r\" (cnt[" ++ j2 ++ "]), \"+r\" (cnt[" ++ j3 ++ "])"
+makeAsmCounter4 j = unlines  ["    __asm__(",
+                              "            \"popcnt %4, %4 \\n\\t\"",
+                              "            \"add %4, %0    \\n\\t\"",
+                              "            \"popcnt %5, %5 \\n\\t\"",
+                              "            \"add %5, %1    \\n\\t\"",
+                              "            \"popcnt %6, %6 \\n\\t\"",
+                              "            \"add %6, %2    \\n\\t\"",
+                              "            \"popcnt %7, %7 \\n\\t\"",
+                              "            \"add %7, %3    \\n\\t\"",
+                              "            : \"+r\" (cnt[" ++ j0 ++ "]), \"+r\" (cnt[" ++ j1 ++ "]), \"+r\" (cnt[" ++ j2 ++ "]), \"+r\" (cnt[" ++ j3 ++ "])",
                               "            : \"r\" (buf[" ++ j0 ++ "]), \"r\" (buf[" ++ j1 ++ "]), \"r\" (buf[" ++ j2 ++ "]), \"r\" (buf[" ++ j3 ++ "]));"]
   where
     j0 = show (j+0)
@@ -998,22 +998,22 @@ makeAsmCounter4 j = unlines  ["    __asm__("
     j3 = show (j+3)
 
 makeAsmCounter2 :: Int -> [Char]
-makeAsmCounter2 j = unlines  ["    __asm__("
-                              "            \"popcnt %2, %2  \\n\\t\""
-                              "            \"add %2, %0     \\n\\t\""
-                              "            \"popcnt %3, %3  \\n\\t\""
-                              "            \"add %3, %1     \\n\\t\""
-                              "            : \"+r\" (cnt[" ++ j0 ++ "]), \"+r\" (cnt[" ++ j1 ++ "])"
+makeAsmCounter2 j = unlines  ["    __asm__(",
+                              "            \"popcnt %2, %2  \\n\\t\"",
+                              "            \"add %2, %0     \\n\\t\"",
+                              "            \"popcnt %3, %3  \\n\\t\"",
+                              "            \"add %3, %1     \\n\\t\"",
+                              "            : \"+r\" (cnt[" ++ j0 ++ "]), \"+r\" (cnt[" ++ j1 ++ "])",
                               "            : \"r\" (buf[" ++ j0 ++ "]), \"r\" (buf[" ++ j1 ++ "]));"]
   where
     j0 = show (j+0)
     j1 = show (j+1)
 
 makeAsmCounter1 :: Int -> [Char]
-makeAsmCounter1 j = unlines  ["    __asm__("
-                              "           \"popcnt %1, %1  \\n\\t\""
-                              "           \"add %1, %0     \\n\\t\""
-                              "            : \"+r\" (cnt[" ++ j0 ++ "])"
+makeAsmCounter1 j = unlines  ["    __asm__(",
+                              "           \"popcnt %1, %1  \\n\\t\"",
+                              "           \"add %1, %0     \\n\\t\"",
+                              "            : \"+r\" (cnt[" ++ j0 ++ "])",
                               "            : \"r\" (buf[" ++ j0 ++ "]));"]
   where
     j0 = show (j+0)
@@ -1025,7 +1025,7 @@ makeAsmCounterN n = expand ([], 0, n)
           | (max - at) >= 4 = expand (code ++ (makeAsmCounter4 at), at + 4, max)
           | (max - at) >= 2 = expand (code ++ (makeAsmCounter2 at), at + 2, max)
           | (max - at) >= 1 = expand (code ++ (makeAsmCounter1 at), at + 1, max)
-          | otherwise      = unlines code
+          | otherwise      = code
 
 makeAsmCounter n = unlines ["int counter (uint64_t * buf){",
                             "    uint64_t cnt[" ++ (show n) ++ "];",
