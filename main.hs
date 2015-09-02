@@ -226,6 +226,17 @@ formatByDict string dictionary = if location == Nothing then string else snd $ g
                         where
                             location = elemIndex'' string (map fst dictionary) 0
 
+removeExtraNewlines :: String -> String
+removeExtraNewlines string | (length string) < 2 = string
+removeExtraNewlines string
+  | (length string) < 2  = string
+  | (x == y) && (x == '\n') =     removeExtraNewlines (y:zs)
+  | otherwise            = x : removeExtraNewlines (y:zs)
+    where
+      x  = head string
+      y  = head $ tail string
+      zs = tail $ tail string
+
 addULLs :: String -> String
 addULLs text = subRegex (mkRegex patc) (subRegex (mkRegex patb) text "\\1LLU}") "\\1LLU,"
             where
@@ -241,7 +252,7 @@ listFirstAnd a  b  c  = (zipWith (.&.) (head b) (head c)):(tail a)
 
 --generateCode :: (Integral a, Bits a, Show a) => [[a]] -> [[a]] -> a -> a -> a -> a -> String
 generateMaxCyCode :: [[Int]] -> [[Int]] -> Int -> Int -> Int -> (String, String)
-generateMaxCyCode graph cycles start end splitbits = (unlines $ map (\s -> formatByDict s dict) codelist, printout)
+generateMaxCyCode graph cycles start end splitbits = (removeExtraNewlines $ unlines $ map (\s -> formatByDict s dict) codelist, printout)
 
     where
         twotothesplitbits = 2^splitbits
@@ -279,34 +290,35 @@ generateMaxCyCode graph cycles start end splitbits = (unlines $ map (\s -> forma
          (":aarray",     aarray),
          (":fops_true",  fops_true),
          (":fops_false", fops_false),
+         (":printouter", printouter),
          (":counter",    counter),
          (":sprinter",   sprinter),
          (":fout",       fout),
          (":fputs",      fputs)]
 
         --":maxpos" static int maxpos = 2;
-        maxpos = "static int maxpos = " ++ (show (-1 + length' graph)) ++ ";"
+        maxpos = "static uint_fast32_t maxpos = " ++ (show (-1 + length' graph)) ++ ";"
 
         --":endhere" static unsigned int endhere = 0;
-        endhere = "static unsigned int endhere = " ++ (show end) ++ ";"
+        endhere = "static uint_fast32_t endhere = " ++ (show end) ++ ";" -- log2(maximum_value + 1)
 
         --":starthere" unsigned int starthere = 0;
-        starthere = "unsigned int starthere = " ++ (show start) ++ ";"
+        starthere = "uint_fast32_t starthere = " ++ (show $ 2 * start) ++ ";" --The '2*' is to bitshift past the fixed '0' at position '0'.
 
         --":cstr" char str[13] = {0,0,0,0,0,0,0,0,0,0,0,0,0};
         cstr = "char str[" ++ (show $ 10 + length graph) ++ "] = {" ++ (trim $ show $ replicate (10 + length graph) 0) ++ "};" --10 is not very magic, just count the chars in the output and leave a few to spare
 
         --":carray" static unsigned long long int C[3][1] = {{18446744073709551614LLU}, {18446744073709551614LLU}, {18446744073709551613LLU}};
-        carray = addULLs ("static unsigned long long int C[" ++ (show $ length clist) ++ "][" ++ (show $ length $ head clist) ++ "] = " ++ (replace "]" "}" (replace "[" "{" (show clist))) ++ ";")
+        carray = addULLs ("static uint_fast64_t C[" ++ (show $ length clist) ++ "][" ++ (show $ length $ head clist) ++ "] = " ++ (replace "]" "}" (replace "[" "{" (show clist))) ++ ";")
 
         --":darray" static unsigned long long int D[3][1] = {{18446744073709551613LLU}, {18446744073709551613LLU}, {18446744073709551614LLU}};
-        darray = addULLs ("static unsigned long long int D[" ++ (show $ length dlist) ++ "][" ++ (show $ length $ head dlist) ++ "] = " ++ (replace "]" "}" (replace "[" "{" (show dlist))) ++ ";")
+        darray = addULLs ("static uint_fast64_t D[" ++ (show $ length dlist) ++ "][" ++ (show $ length $ head dlist) ++ "] = " ++ (replace "]" "}" (replace "[" "{" (show dlist))) ++ ";")
 
         --":xarray" unsigned int X[3] = {0, 0, 0};
-        xarray = "unsigned int X[" ++ (show $ length graph) ++ "] = {" ++ (trim $ show $ replicate (length graph) 0) ++ "};"
+        xarray = "uint_fast8_t X[" ++ (show $ length graph) ++ "] = {" ++ (trim $ show $ replicate (length graph) 0) ++ "};"
 
         --":aarray" unsigned long long int A[3][1] = {{18446744073709551615LLU}, {18446744073709551615LLU}, {18446744073709551615LLU}};
-        aarray = addULLs ("unsigned long long int A[" ++ (show $ length graph) ++ "][" ++ (show $ length $ head aalist) ++ "] = " ++ (replace "]" "}" (replace "[" "{" (show aalist))) ++ ";")
+        aarray = addULLs ("uint_fast64_t A[" ++ (show $ length graph) ++ "][" ++ (show $ length $ head aalist) ++ "] = " ++ (replace "]" "}" (replace "[" "{" (show aalist))) ++ ";")
 
         --":fops_true" A[i][0] = A[i-1][0] & C[i][0];
         fops_true  = unlines $ map (\j -> "        A[i][" ++ (show j) ++ "] = A[i-1][" ++ show j ++ "] & C[i][" ++ show j ++ "];")  [0..(length' $ init $ head aalist)]
@@ -314,11 +326,19 @@ generateMaxCyCode graph cycles start end splitbits = (unlines $ map (\s -> forma
         --":fops_false"  A[i][0] = A[i-1][0] & D[i][0];
         fops_false = unlines $ map (\j -> "        A[i][" ++ (show j) ++ "] = A[i-1][" ++ show j ++ "] & D[i][" ++ show j ++ "];")  [0..(length' $ init $ head aalist)]
 
+        --sprintf(str, "[               ,%5d]\n", this);
+        printouter_sprint = "    sprintf(str, \"[" ++ (replicate (length graph) ' ')  ++ ",%5d]\\n\", this);"
+        -- str[1] = X[0] ^ 48;
+        printouter_xors = unlines ["    str[" ++ (show i) ++ "] = X[" ++ (show (i-1)) ++ "] ^ 48;" | i <- [1..(length graph)]]
+        printouter = unlines ["void printout(){", printouter_sprint, printouter_xors, "}"]
+
         --":counter"    this += counter(A[maxpos][0]);
-        counter = unlines $ map (\i -> concat ["    this += counter(A[maxpos][", show i, "]);"]) [0..(length $ tail $ head aalist)]
+        counter = "    uint_fast64_t * thisbuf = A[maxpos];\n    this = counter(thisbuf);"
+        --unlines $ map (\i -> concat ["    this += counter(A[maxpos][", show i, "]);"]) [0..(length $ tail $ head aalist)]
 
         --":sprinter"        sprintf(str, "[%d%d%d,%5d]\n", X[0], X[1], X[2],  this );
-        sprinter = "        sprintf(str, \"[" ++ (concat $ replicate' "%d" (length graph)) ++ ",%5d]\\n\", " ++ (concat (map (\x -> concat ["X[",show x,"],"]) [0..(-1 + length graph)])) ++ "this );"
+        sprinter = "        printout();"
+        --"        sprintf(str, \"[" ++ (concat $ replicate' "%d" (length graph)) ++ ",%5d]\\n\", " ++ (concat (map (\x -> concat ["X[",show x,"],"]) [0..(-1 + length graph)])) ++ "this );"
 
         --":fout"    fout = fopen("test_0_0_out.txt", "w");
         fout = "    fout = fopen(\"runner_" ++ (show start) ++ "_" ++ (show twotothesplitbits) ++ "_out.txt\", \"w\");"
@@ -327,12 +347,12 @@ generateMaxCyCode graph cycles start end splitbits = (unlines $ map (\s -> forma
         fputs = "    fputs(\"" ++ (show graph) ++ "\\n\", fout);"
 
         codelist = ["#include <stdio.h>",
-            "static unsigned long long int ONES = 18446744073709551615LLU;",
-            "unsigned long long int y;",
-            "unsigned int best = 1;",
-            "unsigned int i;",
-            "unsigned int this;",
-
+            "#include <stdint.h>",
+            --"static unsigned long long int ONES = 18446744073709551615LLU;",
+            "uint_fast64_t y;",
+            "uint_fast32_t best = 1;",
+            "uint_fast32_t i;",
+            "uint_fast32_t this;",
             --static int maxpos = 2;
             ":maxpos",
             --static unsigned int endhere = 0;
@@ -355,6 +375,9 @@ generateMaxCyCode graph cycles start end splitbits = (unlines $ map (\s -> forma
             --unsigned long long int A[3][1] = {{18446744073709551615LLU}, {18446744073709551615LLU}, {18446744073709551615LLU}};
             ":aarray",
             "",
+            "#if UINTPTR_MAX == 0xffffffffffffffff // 64-bit. Hopefully this means the cpu has 'popcnt'.",
+            makeAsmCounter (length graph),
+            "#elif UINTPTR_MAX == 0xffffffff // 32-bit",
             "int counter (unsigned long long i)",
             "{",
             "  unsigned int i1 = i, i2 = i >> 32;",
@@ -367,7 +390,9 @@ generateMaxCyCode graph cycles start end splitbits = (unlines $ map (\s -> forma
             "  return ((i1 + i2) * 0x1010101) >> 24;",
             "}",
             "",
-
+            "#else",
+            "#error \"this cpu doesn't seem to be 32-bit or 64-bit. I don't know how to deal with this.\"",
+            "#endif",
 --          Commented out below is the previous version of the 'f' function, which computes the next "which cycles remain" (A[i]), with
 --              the original code and some intermediate steps on the way to the current version (marked by '//'). Note that a variable ('y')
 --              and five operations have been removed. I did consider an inplicit branch, but found that most possible implementations would
@@ -389,8 +414,7 @@ generateMaxCyCode graph cycles start end splitbits = (unlines $ map (\s -> forma
 --                }
 --                // A[i][0] = A[i-1][0] & (~y | C[i][0]) & (y | D[i][0]);
 --            }
-
-           "void f(int i, int y0){",
+           "void f(uint_fast8_t i, uint_fast8_t y0){",
             "    if(y0){",
             ":fops_true",
             "    } else {",
@@ -398,33 +422,26 @@ generateMaxCyCode graph cycles start end splitbits = (unlines $ map (\s -> forma
             "    }",
             "}",
             "",
+            ":printouter",
+            "",
             "void checkifbest(){",
-            "    this = 0;",
-
+            --"    this = 0;",
             --    this += counter(A[maxpos][0]);
             ":counter",
-
             "",
             "    if(this == best){",
-
             --        sprintf(str, "[%d%d%d,%5d]\n", X[0], X[1], X[2],  this );
             ":sprinter",
-
             "        fwrite(str, 1, sizeof(str), fout);",
             "    }",
             "",
             "    if(this > best){",
-
             --        sprintf(str, "[%d%d%d,%5d]\n", X[0], X[1], X[2],  this );,
             ":sprinter",
-
             "        fwrite(str, 1, sizeof(str), fout);",
             "        best = this;",
             "    }",
             "",
-            "    if(this < best){",
-            "        ;",
-            "    }",
             "}",
             "",
             "int r(){",
@@ -453,7 +470,7 @@ generateMaxCyCode graph cycles start end splitbits = (unlines $ map (\s -> forma
             "        }",
             "        ",
             "    startcarry:",
-            "        if(X[i]){",
+            "        if(X[i] && (i != endhere)){",
             "            X[i] = 0;",
             "            i--;",
             "            goto startcarry;",
@@ -471,16 +488,15 @@ generateMaxCyCode graph cycles start end splitbits = (unlines $ map (\s -> forma
             "    end:",
             "        return 0;",
             "}",
-            "int main(int argc, const char * argv[]) {",
-
+            --"int main(int argc, const char * argv[]) {",
+            "int main(){",
             --    fout = fopen("test_0_0_out.txt", "w");
             ":fout",
             --    fputs("[[0, 1], [1, 2], [0, 2]]\n", fout);
             ":fputs",
-
             "    if(endhere){",
-            "        unsigned int bitpos = 0;",
-            "        unsigned int thisbit;",
+            "        uint_fast8_t bitpos = 0;",
+            "        uint_fast8_t thisbit;",
             "        while(starthere){",
             "            thisbit = starthere & 1;",
             "            X[bitpos] = thisbit;",
@@ -491,7 +507,7 @@ generateMaxCyCode graph cycles start end splitbits = (unlines $ map (\s -> forma
             "        i = endhere;",
             "        r();",
             "    }else{",
-            "        i = 1;",
+            "        i = 0;",
             "        r();",
             "    }",
             "    fwrite(\"FINISHED.\", 1, 9, fout);",
@@ -901,7 +917,7 @@ graphToMaxcyCode graphlist splitbits name = do
   -- putStrLn "1"
   let cycles = graphToCycles graphlist
   -- putStrLn "2"
-  let endhere = splitbits + 1
+  let endhere = splitbits
 -- ???????????????????????
   -- putStrLn "3"
   let startmap = \start ->liftM (\cy -> (show start, fst $ generateMaxCyCode graphlist cy start endhere splitbits)) cycles
@@ -1029,10 +1045,10 @@ makeAsmCounterN n = expand ([], 0, n)
 
 makeAsmCounter n = unlines ["int counter (uint64_t * buf){",
                             "    uint64_t cnt[" ++ (show n) ++ "];",
-                            unlines ["        cnt[" ++ (show i) ++ "] = 0;" | i <- [0..n]],
+                            unlines ["    cnt[" ++ (show i) ++ "] = 0;" | i <- [0..(n-1)]],
                             makeAsmCounterN n,
                             "",
-                            unlines $ "    return cnt[0] + " : ["cnt[" ++ (show k) ++ "] + " | k <- [1..(n-1)]] ++ [";"],
+                            foldl (++) "" $ "    return cnt[0]" : [" + cnt[" ++ (show k) ++ "]" | k <- [1..(n-1)]] ++ [";"],
                             "}"]
 
 -- int counter2 (uint64_t* buf){

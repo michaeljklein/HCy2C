@@ -7,18 +7,18 @@
 //
 
 #include <stdio.h>
-#include <stdint.h>
+#include <stdint.h> // *!
 
 //uint_fast64_t practically tripled the overall speed...
 
-//static unsigned long long int ONES = 18446744073709551615LLU;
+//static unsigned long long int ONES = 18446744073709551615LLU;  // *!
 uint_fast64_t y; //unsigned long long int y;
 uint_fast32_t best = 1; //unsigned int best = 1;
 uint_fast32_t i; //unsigned int i;
 uint_fast32_t this; //unsigned int this;
 static uint_fast32_t maxpos = 14; //static int maxpos = 14;
-static uint_fast32_t endhere = 1; //static unsigned int endhere = 1; // *
-uint_fast32_t starthere = 2; //unsigned int starthere = 2; // *
+static uint_fast32_t endhere = 0; // changed for testing....1; //static unsigned int endhere = 1; // *
+uint_fast32_t starthere = 2; //unsigned int starthere = 2; // *! Basically, replace previous with (% * 2) to bitshift (0th place not touched)
 char str[25] = {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0};
 FILE * fout;
 
@@ -34,13 +34,8 @@ uint_fast8_t X[15] = {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0};
 //unsigned long long int A[15][6] =
 uint_fast64_t A[15][6] = {{18446744073709551615LLU,7745465120565624830LLU,7745465120565624830LLU,7745465120565624830LLU,7745465120565624830LLU,1152921504606846975LLU},{18446744073709551615LLU,18446744073709551615LLU,18446744073709551615LLU,18446744073709551615LLU,18446744073709551615LLU,1152921504606846975LLU},{18446744073709551615LLU,18446744073709551615LLU,18446744073709551615LLU,18446744073709551615LLU,18446744073709551615LLU,1152921504606846975LLU},{18446744073709551615LLU,18446744073709551615LLU,18446744073709551615LLU,18446744073709551615LLU,18446744073709551615LLU,1152921504606846975LLU},{18446744073709551615LLU,18446744073709551615LLU,18446744073709551615LLU,18446744073709551615LLU,18446744073709551615LLU,1152921504606846975LLU},{18446744073709551615LLU,18446744073709551615LLU,18446744073709551615LLU,18446744073709551615LLU,18446744073709551615LLU,1152921504606846975LLU},{18446744073709551615LLU,18446744073709551615LLU,18446744073709551615LLU,18446744073709551615LLU,18446744073709551615LLU,1152921504606846975LLU},{18446744073709551615LLU,18446744073709551615LLU,18446744073709551615LLU,18446744073709551615LLU,18446744073709551615LLU,1152921504606846975LLU},{18446744073709551615LLU,18446744073709551615LLU,18446744073709551615LLU,18446744073709551615LLU,18446744073709551615LLU,1152921504606846975LLU},{18446744073709551615LLU,18446744073709551615LLU,18446744073709551615LLU,18446744073709551615LLU,18446744073709551615LLU,1152921504606846975LLU},{18446744073709551615LLU,18446744073709551615LLU,18446744073709551615LLU,18446744073709551615LLU,18446744073709551615LLU,1152921504606846975LLU},{18446744073709551615LLU,18446744073709551615LLU,18446744073709551615LLU,18446744073709551615LLU,18446744073709551615LLU,1152921504606846975LLU},{18446744073709551615LLU,18446744073709551615LLU,18446744073709551615LLU,18446744073709551615LLU,18446744073709551615LLU,1152921504606846975LLU},{18446744073709551615LLU,18446744073709551615LLU,18446744073709551615LLU,18446744073709551615LLU,18446744073709551615LLU,1152921504606846975LLU},{18446744073709551615LLU,18446744073709551615LLU,18446744073709551615LLU,18446744073709551615LLU,18446744073709551615LLU,1152921504606846975LLU}};
 
-
-#if (defined(__gnuc__) && defined(popcnt))
-//uint32_t
-
-// WAIT!!! Not only will this work with 64bit uints, it can also be ~easily extended to work with N of them in haskell
-
-int counter (uint64_t* buf){ //worked for 6 inputs
+#if UINTPTR_MAX == 0xffffffffffffffff // 64-bit. Hopefully this means the cpu has 'popcnt'. // *!
+int counter (uint64_t* buf){ //worked for 6 inputs *!
     uint64_t cnt[6];
     for (int i = 0; i < (6); i++) {
         cnt[i] = 0;
@@ -65,69 +60,7 @@ int counter (uint64_t* buf){ //worked for 6 inputs
     return cnt[0] + cnt[1] + cnt[2] + cnt[3] + cnt[4] + cnt[5];
 }
 
-//int counter (unsigned long long i) {
-//    unsigned int i1 = i, i2 = i >> 32;
-//    uint64_t cnt[2];
-//    cnt[0] = 0; cnt[1] = 0;
-//    
-//    {
-//        __asm__(
-//                "popcnt %2, %2  \n\t"
-//                "add %2, %0     \n\t"
-//                "popcnt %3, %3  \n\t"
-//                "add %3, %1     \n\t"
-//                : "+r" (cnt[0]), "+r" (cnt[1])
-//                : "r"  (i1), "r"  (i2));
-//    }
-//    return cnt[0] + cnt[1];
-//}
-//
-//int counter2 (unsigned long long i, unsigned long long j) {
-//    unsigned int i1 = i, i2 = i >> 32;
-//    unsigned int j1 = j, j2 = j >> 32;
-//    uint64_t cnt[4];
-//    cnt[0] = 0; cnt[1] = 0; cnt[2] = 0; cnt[3] = 0;
-//    {
-//        __asm__(
-//                "popcnt %4, %4  \n\t"
-//                "add %4, %0     \n\t"
-//                "popcnt %5, %5  \n\t"
-//                "add %5, %1     \n\t"
-//                "popcnt %6, %6  \n\t"
-//                "add %6, %2     \n\t"
-//                "popcnt %7, %7  \n\t"
-//                "add %7, %3     \n\t" // +r means input/output, r means intput
-//                : "+r" (cnt[0]), "+r" (cnt[1]), "+r" (cnt[2]), "+r" (cnt[3])
-//                : "r"  (i1), "r"  (i2), "r"  (j1), "r"  (j2));
-//    }
-//    return cnt[0] + cnt[1] + cnt[2] + cnt[3];
-//}
-
-// retreived and modified from http://danluu.com/assembly-intrinsics/
-//uint32_t builtin_popcnt_unrolled_errata_manual(const uint64_t* buf, int len) {
-//    assert(len % 4 == 0);
-//    uint64_t cnt[4];
-//    for (int i = 0; i < 4; ++i) {
-//        cnt[i] = 0;
-//    }
-//    
-//    for (int i = 0; i < len; i+=4) {
-//        __asm__(
-//                "popcnt %4, %4  \n\t"
-//                "add %4, %0     \n\t"
-//                "popcnt %5, %5  \n\t"
-//                "add %5, %1     \n\t"
-//                "popcnt %6, %6  \n\t"
-//                "add %6, %2     \n\t"
-//                "popcnt %7, %7  \n\t"
-//                "add %7, %3     \n\t" // +r means input/output, r means intput
-//                : "+r" (cnt[0]), "+r" (cnt[1]), "+r" (cnt[2]), "+r" (cnt[3])
-//                : "r"  (buf[i]), "r"  (buf[i+1]), "r"  (buf[i+2]), "r"  (buf[i+3]));
-//    }
-//    return cnt[0] + cnt[1] + cnt[2] + cnt[3];
-//}
-
-#else
+#elif UINTPTR_MAX == 0xffffffff // 32-bit // *!
 int counter (unsigned long long * buf)
 {
     int cnt = 0;
@@ -144,6 +77,9 @@ int counter (unsigned long long * buf)
     }
     return cnt;
 }
+
+#else // *!
+#error "this cpu doesn't seem to be 32-bit or 64-bit. I don't know how to deal with this."
 #endif
 
 //void f(int i, int y0){
@@ -220,7 +156,7 @@ void f(uint_fast8_t i, uint_fast8_t y0){
 //    fwrite(str, 1, sizeof(str), fout);
 //}
 
-void new_print(){
+void printout(){ // *!
     //str[i+1] = X[i] ^ 48
     //char str[24]; //= "[               ,     ]\n"; // 4 + 5 + 15 = 24 ("[,]\n" + this + X's)
     sprintf(str, "[               ,%5d]\n", this);
@@ -255,25 +191,25 @@ void checkifbest(){
 
 //    unsigned long long int thisbuf[6] = {A[maxpos][0], A[maxpos][1], A[maxpos][2], A[maxpos][3], A[maxpos][4], A[maxpos][5]};
     // YAYYY!!! I think I finally used a pointer well!!!!
-    unsigned long long int * thisbuf = A[maxpos];
-    this = counter(thisbuf);
+    uint_fast64_t * thisbuf = A[maxpos]; // *!
+    this = counter(thisbuf); // *!
 
     if(this == best){
 //        sprintf(str, "[%d%d%d%d%d%d%d%d%d%d%d%d%d%d%d,%5d]\n", X[0],X[1],X[2],X[3],X[4],X[5],X[6],X[7],X[8],X[9],X[10],X[11],X[12],X[13],X[14],this );
 //        fwrite(str, 1, sizeof(str), fout);
-        new_print();
+        printout(); // *!
 //        newer_print();
     }
 
     if(this > best){
 //        sprintf(str, "[%d%d%d%d%d%d%d%d%d%d%d%d%d%d%d,%5d]\n", X[0],X[1],X[2],X[3],X[4],X[5],X[6],X[7],X[8],X[9],X[10],X[11],X[12],X[13],X[14],this );
 //        fwrite(str, 1, sizeof(str), fout);
-        new_print();
+        printout(); // *!
 //        newer_print();
         best = this;
     }
 
-//    if(this < best){
+//    if(this < best){ // *!
 //        ;
 //    }
 }
@@ -304,7 +240,7 @@ int r(){
         }
         
     startcarry:
-        if(X[i] && (i != endhere)){ //without the second part, if the setbit is 1 then the whole thing will fail to end until you get all ones..
+        if(X[i] && (i != endhere)){ // *! without the second part, if the setbit is 1 then the whole thing will fail to end until you get all ones..
             X[i] = 0;
             i--;
             goto startcarry;
@@ -324,7 +260,7 @@ int r(){
 }
 
 //int main(int argc, const char * argv[]) {
-int main() {
+int main() { // *!
     fout = fopen("runner_1_2_out.txt", "w");
     fputs("[[0,1],[0,2],[0,3],[0,4],[0,5],[1,2],[1,3],[1,4],[1,5],[2,3],[2,4],[2,5],[3,4],[3,5],[4,5]]\n", fout);
     if(endhere){
@@ -342,7 +278,7 @@ int main() {
         i = endhere;
         r();
     }else{
-        i = 1;
+        i = 0;  // *!
         r();
     }
     fwrite("FINISHED.", 1, 9, fout);
@@ -359,3 +295,66 @@ int main() {
 // real	0m0.009s
 // user	0m0.003s
 // sys	0m0.005s
+
+
+//int counter (unsigned long long i) {
+//    unsigned int i1 = i, i2 = i >> 32;
+//    uint64_t cnt[2];
+//    cnt[0] = 0; cnt[1] = 0;
+//
+//    {
+//        __asm__(
+//                "popcnt %2, %2  \n\t"
+//                "add %2, %0     \n\t"
+//                "popcnt %3, %3  \n\t"
+//                "add %3, %1     \n\t"
+//                : "+r" (cnt[0]), "+r" (cnt[1])
+//                : "r"  (i1), "r"  (i2));
+//    }
+//    return cnt[0] + cnt[1];
+//}
+//
+//int counter2 (unsigned long long i, unsigned long long j) {
+//    unsigned int i1 = i, i2 = i >> 32;
+//    unsigned int j1 = j, j2 = j >> 32;
+//    uint64_t cnt[4];
+//    cnt[0] = 0; cnt[1] = 0; cnt[2] = 0; cnt[3] = 0;
+//    {
+//        __asm__(
+//                "popcnt %4, %4  \n\t"
+//                "add %4, %0     \n\t"
+//                "popcnt %5, %5  \n\t"
+//                "add %5, %1     \n\t"
+//                "popcnt %6, %6  \n\t"
+//                "add %6, %2     \n\t"
+//                "popcnt %7, %7  \n\t"
+//                "add %7, %3     \n\t" // +r means input/output, r means intput
+//                : "+r" (cnt[0]), "+r" (cnt[1]), "+r" (cnt[2]), "+r" (cnt[3])
+//                : "r"  (i1), "r"  (i2), "r"  (j1), "r"  (j2));
+//    }
+//    return cnt[0] + cnt[1] + cnt[2] + cnt[3];
+//}
+
+// retreived and modified from http://danluu.com/assembly-intrinsics/
+//uint32_t builtin_popcnt_unrolled_errata_manual(const uint64_t* buf, int len) {
+//    assert(len % 4 == 0);
+//    uint64_t cnt[4];
+//    for (int i = 0; i < 4; ++i) {
+//        cnt[i] = 0;
+//    }
+//
+//    for (int i = 0; i < len; i+=4) {
+//        __asm__(
+//                "popcnt %4, %4  \n\t"
+//                "add %4, %0     \n\t"
+//                "popcnt %5, %5  \n\t"
+//                "add %5, %1     \n\t"
+//                "popcnt %6, %6  \n\t"
+//                "add %6, %2     \n\t"
+//                "popcnt %7, %7  \n\t"
+//                "add %7, %3     \n\t" // +r means input/output, r means intput
+//                : "+r" (cnt[0]), "+r" (cnt[1]), "+r" (cnt[2]), "+r" (cnt[3])
+//                : "r"  (buf[i]), "r"  (buf[i+1]), "r"  (buf[i+2]), "r"  (buf[i+3]));
+//    }
+//    return cnt[0] + cnt[1] + cnt[2] + cnt[3];
+//}
