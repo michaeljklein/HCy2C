@@ -1,0 +1,67 @@
+import Control.Exception ( SomeException, throwIO, catch )
+import Control.Monad ( liftM, Monad((>>=), return), when, mapM_ )
+import Data.Bits ( Bits((.&.), (.|.), bit) )
+import Data.List
+    ( (++),
+      foldr,
+      concat,
+      filter,
+      zip,
+      map,
+      zipWith,
+      take,
+      tail,
+      replicate,
+      length,
+      last,
+      init,
+      head,
+      foldl,
+      elem,
+      (!!),
+      unlines,
+      sortBy,
+      sort,
+      minimum,
+      lines,
+      foldl' )
+import Data.List.Split ( chunksOf )
+import Data.Maybe ( Maybe(..), fromJust )
+import Data.String.Utils ( replace )
+import Foreign.C.Types ( CULLong )
+import System.Directory ( removeFile, removeDirectoryRecursive )
+import System.IO
+    ( IO,
+      FilePath,
+      IOMode(WriteMode),
+      readFile,
+      putStrLn,
+      hPutStr,
+      openFile,
+      hClose )
+import System.Process ( readProcess )
+import Text.Regex ( subRegex, mkRegex )
+import Data.Typeable ()
+import System.IO.Unsafe ( unsafePerformIO )
+import Prelude
+    ( error,
+      fst,
+      snd,
+      otherwise,
+      ($),
+      Eq((==)),
+      Integral(div, mod),
+      Num((*), (+), (-)),
+      Ord((<), (>), (>=), compare),
+      Show(show),
+      Bool(..),
+      Char,
+      Int,
+      String,
+      not,
+      (&&),
+      read,
+      (^),
+      (.) )
+import System.Directory ()
+import System.IO.Error ( isDoesNotExistError )

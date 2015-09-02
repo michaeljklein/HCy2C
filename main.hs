@@ -1,26 +1,95 @@
-import Control.Exception
-import Control.Monad
-import Data.Bits
+import Control.Exception ( SomeException, throwIO, catch )
+import Control.Monad ( liftM, Monad((>>=), return), when, mapM_ )
+import Data.Bits ( Bits((.&.), (.|.), bit) )
 import Data.List
-import Data.List.Split
-import Data.Maybe
-import Data.String.Utils
-import Foreign.C.Types
-import System.Directory
+    ( (++),
+      foldr,
+      concat,
+      filter,
+      zip,
+      map,
+      zipWith,
+      take,
+      tail,
+      replicate,
+      length,
+      last,
+      init,
+      head,
+      foldl,
+      elem,
+      (!!),
+      unlines,
+      sortBy,
+      sort,
+      minimum,
+      lines,
+      foldl' )
+import Data.List.Split ( chunksOf )
+import Data.Maybe ( Maybe(..), fromJust )
+import Data.String.Utils ( replace )
+import Foreign.C.Types ( CULLong )
+import System.Directory ( removeFile, removeDirectoryRecursive )
 import System.IO
-import System.Process
-import Text.Regex
---import Control.Exception.Assert
+    ( IO,
+      FilePath,
+      IOMode(WriteMode),
+      readFile,
+      putStrLn,
+      hPutStr,
+      openFile,
+      hClose )
+import System.Process ( readProcess )
+import Text.Regex ( subRegex, mkRegex )
+import Data.Typeable ()
+import System.IO.Unsafe ( unsafePerformIO )
+import Prelude
+    ( error,
+      fst,
+      snd,
+      otherwise,
+      ($),
+      Eq((==)),
+      Integral(div, mod),
+      Num((*), (+), (-)),
+      Ord((<), (>), (>=), compare),
+      Show(show),
+      Bool(..),
+      Char,
+      Int,
+      String,
+      not,
+      (&&),
+      read,
+      (^),
+      (.) )
+import System.Directory ()
+import System.IO.Error ( isDoesNotExistError )
 
---For Debugging
-import Data.Typeable
-import System.IO.Unsafe
 
---For cleaning up files
---http://stackoverflow.com/questions/8502201/remove-file-if-it-exists
-import Prelude hiding (catch)
-import System.Directory
-import System.IO.Error hiding (catch)
+-- import Control.Exception
+-- import Control.Monad
+-- import Data.Bits
+-- import Data.List
+-- import Data.List.Split
+-- import Data.Maybe
+-- import Data.String.Utils
+-- import Foreign.C.Types
+-- import System.Directory
+-- import System.IO
+-- import System.Process
+-- import Text.Regex
+-- --import Control.Exception.Assert
+
+-- --For Debugging
+-- import Data.Typeable
+-- import System.IO.Unsafe
+
+-- --For cleaning up files
+-- --http://stackoverflow.com/questions/8502201/remove-file-if-it-exists
+-- import Prelude hiding (catch)
+-- import System.Directory
+-- import System.IO.Error hiding (catch)
 
 removeIfExists :: FilePath -> IO ()
 removeIfExists fileName = removeFile fileName `catch` handleExists
@@ -43,11 +112,7 @@ removeDirIfExists foldername = removeDirectoryRecursive foldername `catch` handl
 --
 --      profile!:
 --              consider whether to optimize r() further
---              consider rolling my own 'sprinter' (should be a peice of cake, but maybe not worth it) DONE
---                  use "str[i] = X[i] ^ 48" (48 is '0', 49 is '1') DONE
 --                  use "A ^ B" instead of "A /= B"
---                  instead of "this = 0;\n this += ...", use "this = a + b + c;" NO, because that would require an additional register?
---                  get rid of "if (this < best)" case DONE
 --              NO-LONGER:use papi get_real_cycles() to interpolate the number of cpu-cycles for a e-edge, c-cycle graph
 --                  use "#include <x86intrin.h>" and "unsigned long long c0 = __rdtsc();" unstead of papi.
 --              write-up number of steps (something like ceiling(forms/64)*2^numedges) and find constant of ~how many cycles per asympt. step
@@ -55,7 +120,7 @@ removeDirIfExists foldername = removeDirectoryRecursive foldername `catch` handl
 --
 --      (long)
 --              write an interface to compile, run and feedback results into haskell
---                  implemented for findcy w/o justCount -> should be simple mod for w/
+--                  implemented until maxcy results back to haskell: compile/run all in dir., read outfiles, interpret
 --              add support for QuickCheck
 --              write an unfolder to unfold n loops of findcy's tree search
 --              write an interface to opencl to run in one thread at a time or auto-split work among threads (manager and push 'medium' tasks to others)
@@ -85,6 +150,9 @@ removeDirIfExists foldername = removeDirectoryRecursive foldername `catch` handl
 --          -> going to just have Haskell do that instead
 --      add count-only option to findcy
 --      implement split-bits
+--              consider rolling my own 'sprinter' (should be a peice of cake, but maybe not worth it) DONE
+--                  use "str[i] = X[i] ^ 48" (48 is '0', 49 is '1') DONE
+--                  get rid of "if (this < best)" case DONE
 --
 ---------------------------------------------------------------------------------------------------------------------------------------
 -------------------------------------------------------------------------------------------------------------------------------------
@@ -227,7 +295,6 @@ formatByDict string dictionary = if location == Nothing then string else snd $ g
                             location = elemIndex'' string (map fst dictionary) 0
 
 removeExtraNewlines :: String -> String
-removeExtraNewlines string | (length string) < 2 = string
 removeExtraNewlines string
   | (length string) < 2  = string
   | (x == y) && (x == '\n') =     removeExtraNewlines (y:zs)
@@ -252,7 +319,7 @@ listFirstAnd a  b  c  = (zipWith (.&.) (head b) (head c)):(tail a)
 
 --generateCode :: (Integral a, Bits a, Show a) => [[a]] -> [[a]] -> a -> a -> a -> a -> String
 generateMaxCyCode :: [[Int]] -> [[Int]] -> Int -> Int -> Int -> (String, String)
-generateMaxCyCode graph cycles start end splitbits = (removeExtraNewlines $ unlines $ map (\s -> formatByDict s dict) codelist, printout)
+generateMaxCyCode graph cycles start end splitbits = (unlines $ map (\s -> formatByDict s dict) codelist, printout)
 
     where
         twotothesplitbits = 2^splitbits
@@ -961,7 +1028,8 @@ main = do
 --  a <- putStrLn $ liftM show $ typeOf processCycles
 --  let out_string = show $ unsafePerformIO $ graphToCycles $ completeGraph 4
 --  putStr $ out_string
-  let str = graphToMaxcyCode (completeGraph 6) 1 "ttest"
+  -- let str = graphToMaxcyCode (completeGraph 8) 1 "ttest"
+  let str = graphToMaxcyCode (completeGraph 8) 0 "ttest"
   putStrLn $ unsafePerformIO str
   putStrLn "\nDone."
 
