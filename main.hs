@@ -113,7 +113,7 @@ removeDirIfExists foldername = removeDirectoryRecursive foldername `catch` handl
 --      profile!:
 --              consider whether to optimize r() further
 --                  use "A ^ B" instead of "A /= B"
---              NO-LONGER:use papi get_real_cycles() to interpolate the number of cpu-cycles for a e-edge, c-cycle graph
+--              use papi get_real_cycles() to interpolate the number of cpu-cycles for a e-edge, c-cycle graph
 --                  use "#include <x86intrin.h>" and "unsigned long long c0 = __rdtsc();" unstead of papi.
 --              write-up number of steps (something like ceiling(forms/64)*2^numedges) and find constant of ~how many cycles per asympt. step
 --                profile and lightly optimize the haskell code -> current state: ghc breaks the printing of 2nd/2 code files and ghci works
@@ -253,25 +253,8 @@ listToULL list = if (length list) > 64
 listToULLs :: Integral a => [a] -> [CULLong]
 listToULLs list = map listToULL (chunksOf 64 (padMod list 0 64))
 
-
 ----Now all we need to do before building is make the variable text generators
---
 --I will be using a custom formatter: each line that needs more info filled in will be marked ":[name of thing to insert]"
---
---Here's a list of everything that needs to be generated:
-{-    maxpos    static int maxpos = 2;
-      endhere   static unsigned int endhere = 0;
-      starthere unsigned int starthere = 0;
-      cstr      char str[13] = {0,0,0,0,0,0,0,0,0,0,0,0,0};
-      carray    static unsigned long long int C[3][1] = {{18446744073709551614LLU}, {18446744073709551614LLU}, {18446744073709551613LLU}};
-      darray    static unsigned long long int D[3][1] = {{18446744073709551613LLU}, {18446744073709551613LLU}, {18446744073709551614LLU}};
-      xarray    unsigned int X[3] = {0, 0, 0};
-      aarray    unsigned long long int A[3][1] = {{18446744073709551615LLU}, {18446744073709551615LLU}, {18446744073709551615LLU}};
-      counter   this += counter(A[maxpos][0]);
-      sprinter  sprintf(str, "[%d%d%d,%5d]\n", X[0], X[1], X[2],  this );
-      fout      fout = fopen("test_0_0_out.txt", "w");
-      fputs     fputs("[[0, 1], [1, 2], [0, 2]]\n", fout);
--}
 
 -- | 'elemIndex''' is the same as 'elemIndex'', except it allows Maybe
 elemIndex'' :: (Eq a, Integral b) => a -> [a] -> b -> Maybe b
@@ -317,9 +300,14 @@ listFirstAnd a  [] _  = a
 listFirstAnd a  _  [] = a
 listFirstAnd a  b  c  = (zipWith (.&.) (head b) (head c)):(tail a)
 
---generateCode :: (Integral a, Bits a, Show a) => [[a]] -> [[a]] -> a -> a -> a -> a -> String
 generateMaxCyCode :: [[Int]] -> [[Int]] -> Int -> Int -> Int -> (String, String)
-generateMaxCyCode graph cycles start end splitbits = (unlines $ map (\s -> formatByDict s dict) codelist, printout)
+generateMaxCyCode graph cycles start end splitbits = ((fst starter) start, snd starter)
+  where
+    starter = (generateMaxCyCodeAtStart graph cycles end splitbits)
+
+--generateCode :: (Integral a, Bits a, Show a) => [[a]] -> [[a]] -> a -> a -> a -> a -> String
+generateMaxCyCodeAtStart :: [[Int]] -> [[Int]] -> Int -> Int -> (Int -> String, String)
+generateMaxCyCodeAtStart graph cycles end splitbits = (\start ->(unlines introlist) ++ ((starthere start) ++ (fout start)) ++ (unlines $ map (\s -> formatByDict s dict) codelist), printout)
 
     where
         twotothesplitbits = 2^splitbits
@@ -349,7 +337,7 @@ generateMaxCyCode graph cycles start end splitbits = (unlines $ map (\s -> forma
         dict = [
          (":maxpos",     maxpos),
          (":endhere",    endhere),
-         (":starthere",  starthere),
+         --(":starthere",  starthere),
          (":cstr",       cstr),
          (":carray",     carray),
          (":darray",     darray),
@@ -360,7 +348,7 @@ generateMaxCyCode graph cycles start end splitbits = (unlines $ map (\s -> forma
          (":printouter", printouter),
          (":counter",    counter),
          (":sprinter",   sprinter),
-         (":fout",       fout),
+         --(":fout",       fout),
          (":fputs",      fputs)]
 
         --":maxpos" static int maxpos = 2;
@@ -370,7 +358,7 @@ generateMaxCyCode graph cycles start end splitbits = (unlines $ map (\s -> forma
         endhere = "static uint_fast32_t endhere = " ++ (show end) ++ ";" -- log2(maximum_value + 1)
 
         --":starthere" unsigned int starthere = 0;
-        starthere = "uint_fast32_t starthere = " ++ (show $ 2 * start) ++ ";" --The '2*' is to bitshift past the fixed '0' at position '0'.
+        starthere = (\startplace ->"uint_fast32_t starthere = " ++ (show $ 2 * startplace) ++ ";\n") :: Int -> [Char] --The '2*' is to bitshift past the fixed '0' at position '0'.
 
         --":cstr" char str[13] = {0,0,0,0,0,0,0,0,0,0,0,0,0};
         cstr = "char str[" ++ (show $ 10 + length graph) ++ "] = {" ++ (trim $ show $ replicate (10 + length graph) 0) ++ "};" --10 is not very magic, just count the chars in the output and leave a few to spare
@@ -408,15 +396,18 @@ generateMaxCyCode graph cycles start end splitbits = (unlines $ map (\s -> forma
         --"        sprintf(str, \"[" ++ (concat $ replicate' "%d" (length graph)) ++ ",%5d]\\n\", " ++ (concat (map (\x -> concat ["X[",show x,"],"]) [0..(-1 + length graph)])) ++ "this );"
 
         --":fout"    fout = fopen("test_0_0_out.txt", "w");
-        fout = "    fout = fopen(\"runner_" ++ (show start) ++ "_" ++ (show twotothesplitbits) ++ "_out.txt\", \"w\");"
+        fout = (\startplace ->"#define fopener fopen(\"runner_" ++ (show startplace) ++ "_" ++ (show twotothesplitbits) ++ "_out.txt\", \"w\")\n") :: Int -> [Char]
 
         --":fputs"    fputs("[[0, 1], [1, 2], [0, 2]]\n", fout);
         fputs = "    fputs(\"" ++ (show graph) ++ "\\n\", fout);"
 
-        codelist = ["#include <stdio.h>",
+        introlist = ["#include <stdio.h>",
             "#include <stdint.h>",
+            "FILE * fout;"]
             --"static unsigned long long int ONES = 18446744073709551615LLU;",
-            "uint_fast64_t y;",
+            --unsigned int starthere = 0;
+            -- ":starthere",
+        codelist =  ["uint_fast64_t y;",
             "uint_fast32_t best = 1;",
             "uint_fast32_t i;",
             "uint_fast32_t this;",
@@ -424,11 +415,9 @@ generateMaxCyCode graph cycles start end splitbits = (unlines $ map (\s -> forma
             ":maxpos",
             --static unsigned int endhere = 0;
             ":endhere",
-            --unsigned int starthere = 0;
-            ":starthere",
             --char str[13] = {0,0,0,0,0,0,0,0,0,0,0,0,0};
             ":cstr",
-            "FILE * fout;",
+            --"FILE * fout;",
             "",
             --static unsigned long long int C[3][1] = {{18446744073709551614LLU}, {18446744073709551614LLU}, {18446744073709551613LLU}};
             ":carray",
@@ -558,7 +547,8 @@ generateMaxCyCode graph cycles start end splitbits = (unlines $ map (\s -> forma
             --"int main(int argc, const char * argv[]) {",
             "int main(){",
             --    fout = fopen("test_0_0_out.txt", "w");
-            ":fout",
+            "fout = fopener;",
+            --":fout",
             --    fputs("[[0, 1], [1, 2], [0, 2]]\n", fout);
             ":fputs",
             "    if(endhere){",
@@ -982,24 +972,26 @@ graphToCycles graphlist = do
 --graphToMaxcyCode :: [[Int]] -> Int -> [Char] -> [Char] -- IO ()
 graphToMaxcyCode graphlist splitbits name = do
   -- putStrLn "1"
-  let cycles = graphToCycles graphlist
+  cycles <- graphToCycles graphlist
   -- putStrLn "2"
   let endhere = splitbits
 -- ???????????????????????
   -- putStrLn "3"
-  let startmap = \start ->liftM (\cy -> (show start, fst $ generateMaxCyCode graphlist cy start endhere splitbits)) cycles
-  let codelist = map startmap  [0..(2^splitbits)-1] :: [IO (String, String)]
+  let startmap = \start -> (show start, (fst $ generateMaxCyCodeAtStart graphlist cycles endhere splitbits) start)
+  --let startmap = \start ->liftM (\cy -> (show start, fst $ generateMaxCyCode graphlist cy start endhere splitbits)) cycles
+  let codelist = map startmap  [0..(2^splitbits)-1] :: [(String, String)]
   removeDirIfExists name
   mkdir_results <- readProcess "mkdir" [name] []
   -- putStrLn "4"
   --writeC (head codelist)
-  mapM_ writeC codelist
+  mapM_ writeC (map return codelist)
   return "Done."
     where
       -- writeC :: IO (String, String) ->IO (IO ())
+      writeC :: IO (String, String) -> IO [Char]
       writeC input = do
-        start <- input >>= return . fst :: IO [Char]
-        code <- input >>= return . snd :: IO [Char]
+        start <- input >>= return . fst -- :: [Char]
+        code <- input >>= return . snd -- :: [Char]
         -- startline <- return $ (\st ->"start:" ++ st) start
         -- putStrLn startline
         let maxfilenum = (2^splitbits)
@@ -1029,7 +1021,7 @@ main = do
 --  let out_string = show $ unsafePerformIO $ graphToCycles $ completeGraph 4
 --  putStr $ out_string
   -- let str = graphToMaxcyCode (completeGraph 8) 1 "ttest"
-  let str = graphToMaxcyCode (completeGraph 8) 0 "ttest"
+  let str = graphToMaxcyCode (completeGraph 8) 1 "ttest"
   putStrLn $ unsafePerformIO str
   putStrLn "\nDone."
 
