@@ -34,6 +34,7 @@ import System.IO
     ( IO,
       FilePath,
       IOMode(WriteMode),
+      IOMode(ReadMode),
       readFile,
       putStrLn,
       hPutStr,
@@ -63,7 +64,7 @@ import Prelude
       read,
       (^),
       (.) )
-import System.Directory ()
+import System.Directory ( getDirectoryContents )
 import System.IO.Error ( isDoesNotExistError )
 
 
@@ -116,27 +117,30 @@ removeDirIfExists foldername = removeDirectoryRecursive foldername `catch` handl
 --              use papi get_real_cycles() to interpolate the number of cpu-cycles for a e-edge, c-cycle graph
 --                  use "#include <x86intrin.h>" and "unsigned long long c0 = __rdtsc();" unstead of papi.
 --              write-up number of steps (something like ceiling(forms/64)*2^numedges) and find constant of ~how many cycles per asympt. step
---                profile and lightly optimize the haskell code -> current state: ghc breaks the printing of 2nd/2 code files and ghci works
 --
 --      (long)
---              write an interface to compile, run and feedback results into haskell
---                  implemented until maxcy results back to haskell: compile/run all in dir., read outfiles, interpret
 --              add support for QuickCheck
 --              write an unfolder to unfold n loops of findcy's tree search
 --              write an interface to opencl to run in one thread at a time or auto-split work among threads (manager and push 'medium' tasks to others)
 --              write a more formal interface to the whole thing, incl. a general graph -> minimal nontrivial parts -> complete solution
+--                compile all in folder
+--                run all in folder
+--                check maxcy solution
+--                check all in folder
+--                reduce solutions
+--                convert solution to digraph
 --                still need solution files to graph
 --
 --      (mild)
---              remove 'ONES' if not needed
 --              fix other functions to not use a state variable
 --              make variables for repetitive operations (e.g. length - 1, show something, etc.)
---              "The -ddump-minimal-imports option to ghc writes the cleaned-up list to M.imports, where M is the module being compiled."
 --              add option to only print new bests?
 --
 --      (fun)
 --              consider porting to accelerate (with TemplateHaskell?) (partial version in '4gpu' folder)
 --
+--      (comments)
+--              *
 --FIXED/DONE:
 --      converting vertex cycles to edge cycles misses edges (probably from the a/prepending
 --      converting a [1,0] list to a ULL doesn't pad properly. It outputs [1,1..stuff] instead of [stuff,1,1..1]
@@ -153,6 +157,9 @@ removeDirIfExists foldername = removeDirectoryRecursive foldername `catch` handl
 --              consider rolling my own 'sprinter' (should be a peice of cake, but maybe not worth it) DONE
 --                  use "str[i] = X[i] ^ 48" (48 is '0', 49 is '1') DONE
 --                  get rid of "if (this < best)" case DONE
+--      profile and lightly optimize the haskell code -> current state: ghc breaks the printing of 2nd/2 code files and ghci works
+--      remove 'ONES' if not needed
+--      "The -ddump-minimal-imports option to ghc writes the cleaned-up list to M.imports, where M is the module being compiled."
 --
 ---------------------------------------------------------------------------------------------------------------------------------------
 -------------------------------------------------------------------------------------------------------------------------------------
@@ -1009,6 +1016,42 @@ graphToMaxcyCode graphlist splitbits name = do
         return start
 -- generateMaxCyCode graph cycles start end splitbits
 
+compileAllInDir :: [Char] -> IO ()
+compileAllInDir dir = do
+  files <- getDirectoryContents dir
+  let cFile = \file ->((last file) == 'c') && ((last $ init file) == '.')
+  code_files <- return $ filter cFile files
+  let compile file = readProcess "gcc" [file, "-O3", "-o", "findcy_temp"] [] >>= putStrLn
+  mapM_ compile code_files
+
+runAllInDir :: [Char] -> IO ()
+runAllInDir dir = do
+  files <- getDirectoryContents dir
+  exec_files <- return $ filter execFile files
+  let run file = readProcess ("./" ++ file) [] [] >>= putStrLn
+  mapM_ run exec_files
+    where
+      execFile name
+          | name == []         = True
+          | (last name) == '.' = False
+          | otherwise         = execFile $ init name
+-- d is here, c is beginning comments, m is maxcy fun
+checkMaxCySolution file = do
+  handle <- openFile file ReadMode
+  solutionFile <- catch (readFile file) handler
+  --goodFile <- return (finished $ lines solutionFile) -- && (good_graph solutionFile)
+  graph <- return $ read $ head $ lines solutionFile :: IO [[Int]]
+  solutions <- return $ trim $ lines solutionFile
+  putStrLn $ show graph
+  -- here, need to write function converting a single solution into (binary list, number)->(digraph, number)->(number from graphToNumCycles, number)->(fst %) == (snd %)
+  where
+    finished = \list ->(last list) == "FINISHED."
+    --good_graph = \s ->eq_graph graph $ head $ lines s
+    --eq_graph graph s = (show graph) == s
+    handler :: SomeException -> IO String
+    handler _ = error "The results have disappeared under my nose."
+
+
 k4g :: [[Int]]
 k4g = [[0,1],[0,2],[0,3],[1,2],[1,3],[2,3]]
 
@@ -1045,6 +1088,32 @@ sortBySnd list = sortBy (\a b -> compare (snd a) (snd b)) list
 
 completeGraph :: Integral a => a -> [[a]]
 completeGraph n = [[a,b] | a <- [0..n-1], b <- [0..n-1], a<b]
+
+-- lookes like <|=|=|=|>
+-- 3->1,4
+-- 4->2,3
+-- 5->3,6
+-- 6->4,5
+-- n->n - 2, n - 1 + 2 * (mod n 2)
+-- The shuttle graph is good for debugging because of the following property:
+--    There are (n+1) cycles that are a cap or middle square (units)
+--    There are (n+0) cycles that are an adjacent pair   of units
+--    There are (n-1) cycles that are an adjacent triple of units
+--    etc.
+-- Because of this property, this graph has exactly (2 + 3 n + n^2)/2 cycles (equal to TriangularNumber(n+1)).
+shuttleGraph :: Integral a => a -> [[a]]
+shuttleGraph n = [0,1] : [0,2] : [1,2] : [2*n - 1, 2*n + 1] : [2*n, 2*n + 1] : [[m, m - 2] | m <- [3..2*n]] ++ [[m, m + 1] | m <- [3,5..2*n - 1]]
+
+--  For the wheel graph, starting with n == 4 (by mathematica's definition, isomorphic to K4),
+--    the nth graph is (n-1) triangles joined at a common central vertex and each joined to the
+--    next in a wheel. The number of cycles may be found as follows:
+--      ( 1 ) There are (n-1)     1-triangle cycles
+--      ( 2 ) There are (n-1)     2-triangle cycles
+--      ( . ) ...
+--      (n-2) There are (n-1) (n-2)-triangle cycles
+--  With the addition of the single cycle of all the triangles, this gives that there is a total
+--    of (n-1)*(n-2) + 1 cycles
+
 
 -- processCycles :: [Char] -> [[Int]] -> [[Int]]
 -- processCycles cycles_str graph = if (done /= "DONE.") || (graph /= (show graph))
