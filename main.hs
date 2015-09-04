@@ -777,7 +777,6 @@ generateFindCyCode graph cfilename justCount = unlines $ map (\s -> formatByDict
                         str[7] = lookup[this_current_path[3]][0];
                     -}
                     -- :fwrite_str    fwrite(str, 1, 13, outfile);
-
                     "}",
                     "",
                     "int main(int argc, const char * argv[]) {",
@@ -795,12 +794,10 @@ generateFindCyCode graph cfilename justCount = unlines $ map (\s -> formatByDict
                     ":init_paths",
                     -- :init_paths    unsigned int current_path[4];
                     --                unsigned int adjacency_path[4];
-
                     "    register unsigned int path_position = 0;",
                     ":init_fresh",
                     -- :init_fresh    unsigned char fresh[4] = {1,1,1,1};
                     --                unsigned char inplay[4] = {1,1,1,1};
-
                     "    register unsigned int start = 0;",
                     "    register unsigned int fresh_found;",
                     "    register unsigned int fresh_found_adjacency;",
@@ -812,7 +809,6 @@ generateFindCyCode graph cfilename justCount = unlines $ map (\s -> formatByDict
                     -- :init_file     FILE * outfile = fopen("checking.txt", "w");
                     ":fwrite_graph",
                     -- :fwrite_graph  fwrite("[[0,1],[0,2],[0,3],[1,2],[3,1],[2,3]]\n",1,39,outfile);
-
                     "",
                     "    starter_loop:",
                     "    if (start != 2 ) {",
@@ -823,7 +819,6 @@ generateFindCyCode graph cfilename justCount = unlines $ map (\s -> formatByDict
                     -- :assign_fresh  fresh[0] = inplay[0]; fresh[1] = inplay[1]; fresh[2] = inplay[2]; fresh[3] = inplay[3];
                     -- :assign_cpath  current_path[0] = start; current_path[1] = 0; current_path[2] = 0; current_path[3] = 0;
                     -- :assign_apath  adjacency_path[0] = 0; adjacency_path[1] = 0; adjacency_path[2] = 0; adjacency_path[3] = 0;,
-
                     "",
                     "        fresh_found = 0;",
                     "        fresh_found_adjacency = 0;",
@@ -912,7 +907,6 @@ generateFindCyCode graph cfilename justCount = unlines $ map (\s -> formatByDict
 -- The following is wrapping together the two code-generators so that:
 --    compilation may be automatic (at least for findcy)
 --    can automatically pipe graph -> findcy -> cycles -> maxcy -> (compile/run) -> collect results
---
 ------------------------------------------------------------------------------------------------------------------------------------------------------------
 ------------------------------------------------------------------------------------------------------------------------------------------------------------
 
@@ -932,15 +926,11 @@ graphToNumCycles graphlist = do
   when ((length comp_results) > 1) (putStrLn comp_results)
   run_results <- readProcess "./countcy_temp" [] []
   let numcy = read run_results :: Int
-  when ((length run_results) > 12) (putStrLn ("results:" ++ run_results)) -- magic number 6 is one less than the shortest c error I found after little checking
+  when ((length run_results) > 12) (putStrLn ("results:" ++ run_results)) -- magic number 12 is one less than the shortest c error I found after little checking
   return numcy
 
 processCycles :: [Char] -> [[Int]] -> [[Int]]
 processCycles cycles_string graph = ifElseError good ((\s ->(map read_cy $ trim $ lines s)) cycles_string)
-
-    --liftM3 if good
-    --                                then liftM (\s ->(map read_cy $ trim $ lines s)) cycles_string
-    --                                else error "Output file is either unfinished or unmatched to the current graph."
   where
     good             = (&&) finished good_graph
     finished         = (\s ->eq_done $ last $ lines s) cycles_string
@@ -969,12 +959,6 @@ graphToCycles graphlist = do
     where
       handler :: SomeException -> IO String
       handler _ = error "The results have disappeared under my nose."
-
---myMapM_ :: (t -> t1) -> [t] -> ()
--- myMapM_ f []     = ()
--- myMapM_ f (x:xs) = do
---   evaluate $ f x
---   liftM2 myMapM_ f xs
 
 --graphToMaxcyCode :: [[Int]] -> Int -> [Char] -> [Char] -- IO ()
 graphToMaxcyCode graphlist splitbits name = do
@@ -1071,8 +1055,6 @@ main = do
 ------------------------------------------------------------------------------------------------------------------------------------------------------------
 ------------------------------------------------------------------------------------------------------------------------------------------------------------
 --The following is for debugging purposes.
---
---
 ------------------------------------------------------------------------------------------------------------------------------------------------------------
 ------------------------------------------------------------------------------------------------------------------------------------------------------------
 
@@ -1102,7 +1084,7 @@ completeGraph n = [[a,b] | a <- [0..n-1], b <- [0..n-1], a<b]
 --    etc.
 -- Because of this property, this graph has exactly (2 + 3 n + n^2)/2 cycles (equal to TriangularNumber(n+1)).
 shuttleGraph :: Integral a => a -> [[a]]
-shuttleGraph n = [0,1] : [0,2] : [1,2] : [2*n - 1, 2*n + 1] : [2*n, 2*n + 1] : [[m, m - 2] | m <- [3..2*n]] ++ [[m, m + 1] | m <- [3,5..2*n - 1]]
+shuttleGraph n = [0,1] : [0,2] : [1,2] : [2*n-1, 2*n+1] : [2*n, 2*n+1] : [[m, m - 2] | m <- [3..2*n]] ++ [[m, m+1] | m <- [3,5..2*n-1]]
 
 --  For the wheel graph, starting with n == 4 (by mathematica's definition, isomorphic to K4),
 --    the nth graph is (n-1) triangles joined at a common central vertex and each joined to the
@@ -1113,7 +1095,10 @@ shuttleGraph n = [0,1] : [0,2] : [1,2] : [2*n - 1, 2*n + 1] : [2*n, 2*n + 1] : [
 --      (n-2) There are (n-1) (n-2)-triangle cycles
 --  With the addition of the single cycle of all the triangles, this gives that there is a total
 --    of (n-1)*(n-2) + 1 cycles
-
+--
+-- Constructed by making the spokes from '0', adding all but one of the outer cycle, then adding the final edge
+wheelGraph :: Integral a => a -> [[a]]
+wheelGraph n = [[0, i] | i <- [1..(n-1)]] ++ [[j, j+1] | j <- [1..(n-2)]] ++ [[1, n-1]]
 
 -- processCycles :: [Char] -> [[Int]] -> [[Int]]
 -- processCycles cycles_str graph = if (done /= "DONE.") || (graph /= (show graph))
