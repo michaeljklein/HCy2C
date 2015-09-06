@@ -111,6 +111,8 @@ removeDirIfExists foldername = removeDirectoryRecursive foldername `catch` handl
 --      Warning: no synopsis given. You should edit the .cabal file and add one.
 --      You may want to edit the .cabal file and add a Description field.
 --
+--      ADD OPTION FOR FINDCY OF DIGRAPH
+--
 --      profile!:
 --              consider whether to optimize r() further
 --                  use "A ^ B" instead of "A /= B"
@@ -312,6 +314,55 @@ generateMaxCyCode graph cycles start end splitbits = ((fst starter) start, snd s
   where
     starter = (generateMaxCyCodeAtStart graph cycles end splitbits)
 
+sndMap2 :: [[(a,b)]] -> [[b]]
+sndMap2 lists = map (\l ->map snd l) lists
+
+maxPositive :: (Ord a, Num a) => [a] -> a
+maxPositive list = foldl (\sofar next ->if sofar >= next then sofar else next) 0 list
+
+maxPositiveSnd :: (Num a, Ord b, Num b) => [(a,b)] -> (a,b)
+maxPositiveSnd list = foldl (\sofar next -> if (snd sofar) >= (snd next) then sofar else next) (-1,-1) list
+
+listsMaxPositive :: (Ord a, Num a) => [[a]] -> a
+listsMaxPositive lists = maxPositive $ map maxPositive lists
+
+-- | This function counts the number of occurances of x in lists
+tallyElem :: Eq a => [[a]] -> a -> Int
+tallyElem lists x = foldl (\count list ->count + (bool $ elem x list)) 0 lists
+
+-- | This function finds some most commonly occuring snd element in a list of lists
+aMostOftenElem :: [[(a, Int)]] -> Int
+aMostOftenElem listsOfTups = fst maxTally
+  where
+    lists = sndMap2 listsOfTups
+    tallies = map (\elem ->(elem, tallyElem lists elem)) [0..maxElem]
+    maxTally = maxPositiveSnd tallies
+    maxElem = listsMaxPositive lists
+
+-- | This function takes a list of lists of tuples and switches all occurances of 'a' with 'b' and all occurances of 'b' with 'a'.
+switchInTupLists :: [[(a, Int)]] -> Int -> Int -> [[(a, Int)]]
+switchInTupLists lists a b = switchOne interLists1 interElem b
+  where
+    maximum = listsMaxPositive $ sndMap2 lists
+    interElem = maximum + 1
+    interLists0 = switchOne lists a interElem
+    interLists1 = switchOne interLists0 b a
+    switchOne lists0 a0 b0 = map (\l ->map (\e ->if (snd e) == a0 then (fst e, b0) else e) l) lists0
+
+-- | This function makes sure that '0' is a most often snd element in a list of lists
+frontLoadTupLists :: [[(a, Int)]] -> [[(a, Int)]]
+frontLoadTupLists tuplists = switchInTupLists tuplists 0 (aMostOftenElem tuplists)
+
+-- | This function deletes the cycles which will be nulled out by the first edge being zero, i.e. it deletes cycles made impossible by fixing the 0th edge forward.
+-- Additionally, this function re-frontloads the lists so that more maxcy orientations "may" be found more quickly, reducing the need to print cycles.
+-- (True, _) if edge is forward in cycle, blist[][] = 0 (is how it's shown to be forward)
+trimCycleList :: [[(Bool, Int)]] -> [[(Bool, Int)]]
+trimCycleList cyclelist = switchInTupLists refrontloaded 0 (aMostOftenElem refrontloaded)
+  where
+    frontloaded = frontLoadTupLists cyclelist
+    trimmed = map (\cy ->if elem (True, 0) cy then tail cy else cy) frontloaded -- if a cycle has (forward,0) then remove it
+    refrontloaded = frontLoadTupLists cyclelist
+
 --generateCode :: (Integral a, Bits a, Show a) => [[a]] -> [[a]] -> a -> a -> a -> a -> String
 generateMaxCyCodeAtStart :: [[Int]] -> [[Int]] -> Int -> Int -> (Int -> String, String)
 generateMaxCyCodeAtStart graph cycles end splitbits = (\start ->(unlines introlist) ++ ((starthere start) ++ (fout start)) ++ (unlines $ map (\s -> formatByDict s dict) codelist), printout)
@@ -330,7 +381,8 @@ generateMaxCyCodeAtStart graph cycles end splitbits = (\start ->(unlines introli
                             "aalist:",
                             printULLs aalist ]
 
-        cyclelists = map sortBySnd (map (\c -> convIndivCycle graph c) cycles)
+        cyclelistsUntrimmed = map sortBySnd (map (\c -> convIndivCycle graph c) cycles)
+        cyclelists = trimCycleList cyclelistsUntrimmed
 
         alist = map (\var -> aVarList cyclelists var) [0..(-1 + length' graph)]
         blist = map (\var -> bVarList cyclelists var) [0..(-1 + length' graph)]
@@ -588,20 +640,20 @@ testcycles :: [[Int]]
 testcycles = [[0,1,2,0,0],[1,0,2,0,0,0]]
 -}
 
--- k4g :: [[Int]]
--- k4g = [[0,1],[0,2],[0,3],[1,2],[1,3],[2,3]]
+k4g :: [[Int]]
+k4g = [[0,1],[0,2],[0,3],[1,2],[1,3],[2,3]]
 
--- k4c :: [[Int]]
--- k4c = [[0,1,2,0],[0,1,2,3],[0,1,3,0],[0,1,3,2],[0,2,1,0],[0,2,1,3],[0,2,3,0],[0,2,3,1],[0,3,1,0],[0,3,1,2],[0,3,2,0],[0,3,2,1],[1,2,3,0],[1,3,2,0]]
+k4c :: [[Int]]
+k4c = [[0,1,2,0],[0,1,2,3],[0,1,3,0],[0,1,3,2],[0,2,1,0],[0,2,1,3],[0,2,3,0],[0,2,3,1],[0,3,1,0],[0,3,1,2],[0,3,2,0],[0,3,2,1],[1,2,3,0],[1,3,2,0]]
 
--- main :: IO ()
--- main = if goodGraphList k4g
-        -- then do
-            -- writeFile "test.c" (fst (generateMaxCyCode k4g k4c 0 1 0))
-            -- putStrLn (snd (generateMaxCyCode k4g k4c 0 1 0))
-        -- else putStrLn "not a good graph"
+main :: IO ()
+main = if goodGraphList k4g
+        then do
+            putStrLn (fst (generateMaxCyCode k4g k4c 0 1 0))
+            putStrLn (snd (generateMaxCyCode k4g k4c 0 1 0))
+        else putStrLn "not a good graph"
 
-
+-- generateMaxCyCode graph cycles start end splitbits
 
 ------------------------------------------------------------------------------------------------------------------------------------------------------------
 ------------------------------------------------------------------------------------------------------------------------------------------------------------
@@ -1019,15 +1071,36 @@ runAllInDir dir = do
           | name == []         = True
           | (last name) == '.' = False
           | otherwise         = execFile $ init name
--- d is here, c is beginning comments, m is maxcy fun
+
+cutUntoChar :: [Char] -> Char -> [Char]
+cutUntoChar [] _ = []
+cutUntoChar (x:xs) char
+    | x == char  = []
+    | otherwise = x : (cutUntoChar xs char)
+
+readBins :: [Char] -> [Int]
+readBins [] = []
+readBins ('0':xs) = 0 : (readBins xs)
+readBins ('1':xs) = 1 : (readBins xs)
+readBins (_:xs)   = error "list passed not composed of 0's and 1's"
+
+-- solutionStrToTup :: [Char] -> ([Int], Int)
+-- solutionStrToTup str = (readBins bins, read num)
+--   where
+--     bins = cutUntoChar (tail str) ','
+--     num  = reverse $ cutUntoChar (reverse $ trim str) ','
+
 checkMaxCySolution file = do
   handle <- openFile file ReadMode
   solutionFile <- catch (readFile file) handler
   --goodFile <- return (finished $ lines solutionFile) -- && (good_graph solutionFile)
   graph <- return $ read $ head $ lines solutionFile :: IO [[Int]]
-  solutions <- return $ trim $ lines solutionFile
+  solutionsStr <- return $ trim $ lines solutionFile
   putStrLn $ show graph
+  -- solutionsTup <- solutionsStrToTup solutionsStr
   -- here, need to write function converting a single solution into (binary list, number)->(digraph, number)->(number from graphToNumCycles, number)->(fst %) == (snd %)
+  -- Solutions are of the form "[01010101001,6784765]"
+
   where
     finished = \list ->(last list) == "FINISHED."
     --good_graph = \s ->eq_graph graph $ head $ lines s
@@ -1036,21 +1109,21 @@ checkMaxCySolution file = do
     handler _ = error "The results have disappeared under my nose."
 
 
-k4g :: [[Int]]
-k4g = [[0,1],[0,2],[0,3],[1,2],[1,3],[2,3]]
+-- k4g :: [[Int]]
+-- k4g = [[0,1],[0,2],[0,3],[1,2],[1,3],[2,3]]
 
-k4c :: [[Int]]
-k4c = [[0,1,2,0],[0,1,2,3],[0,1,3,0],[0,1,3,2],[0,2,1,0],[0,2,1,3],[0,2,3,0],[0,2,3,1],[0,3,1,0],[0,3,1,2],[0,3,2,0],[0,3,2,1],[1,2,3,0],[1,3,2,0]]
+-- k4c :: [[Int]]
+-- k4c = [[0,1,2,0],[0,1,2,3],[0,1,3,0],[0,1,3,2],[0,2,1,0],[0,2,1,3],[0,2,3,0],[0,2,3,1],[0,3,1,0],[0,3,1,2],[0,3,2,0],[0,3,2,1],[1,2,3,0],[1,3,2,0]]
 
-main :: IO ()
-main = do
---  a <- putStrLn $ liftM show $ typeOf processCycles
---  let out_string = show $ unsafePerformIO $ graphToCycles $ completeGraph 4
---  putStr $ out_string
-  -- let str = graphToMaxcyCode (completeGraph 8) 1 "ttest"
-  let str = graphToMaxcyCode (completeGraph 8) 1 "ttest"
-  putStrLn $ unsafePerformIO str
-  putStrLn "\nDone."
+-- main :: IO ()
+-- main = do
+-- --  a <- putStrLn $ liftM show $ typeOf processCycles
+-- --  let out_string = show $ unsafePerformIO $ graphToCycles $ completeGraph 4
+-- --  putStr $ out_string
+--   -- let str = graphToMaxcyCode (completeGraph 8) 1 "ttest"
+--   let str = graphToMaxcyCode (completeGraph 8) 1 "ttest"
+--   putStrLn $ unsafePerformIO str
+--   putStrLn "\nDone."
 
 ------------------------------------------------------------------------------------------------------------------------------------------------------------
 ------------------------------------------------------------------------------------------------------------------------------------------------------------
