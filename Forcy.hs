@@ -12,7 +12,7 @@ module Forcy
     where
 
 import Control.Exception ( SomeException, throwIO, catch )
-import Control.Monad ( liftM, Monad((>>=), return), when, mapM_ )
+import Control.Monad ( liftM, Monad((>>=), return), when, mapM_, mapM, filterM )
 import Data.Bits ( Bits((.&.), (.|.), bit) )
 import Data.List
     ( (++),
@@ -37,7 +37,8 @@ import Data.List
       sort,
       minimum,
       lines,
-      foldl' )
+      foldl',
+      reverse )
 import Data.List.Split ( chunksOf )
 import Data.Maybe ( Maybe(..), fromJust )
 import Data.String.Utils ( replace )
@@ -718,8 +719,8 @@ trim list = init $ tail list
 hStringToCList :: String -> String
 hStringToCList string = "[" ++ (trim string) ++ "]"
 
-generateFindCyCode :: [[Int]] -> [Char] -> Bool-> [Char]
-generateFindCyCode graph cfilename justCount = unlines $ map (\s -> formatByDict s dict) codelist
+generateFindCyCode :: [[Int]] -> [Char] -> Bool -> Bool -> [Char]
+generateFindCyCode graph cfilename justCount directed = unlines $ map (\s -> formatByDict s dict) codelist
     where
         glen = length graph
         gmax = length $ tail graph
@@ -784,8 +785,11 @@ generateFindCyCode graph cfilename justCount = unlines $ map (\s -> formatByDict
                           const unsigned int vo3[1] = {1};
                           const unsigned int * vos[4] = {vo0,vo1,vo2,vo3};
         -}
-
-        adj_lists = map (\v ->sort $ map (otherElem v) (filter (\e -> elem v e) graph)) [0..(glen - 1)]
+        adj_lists = if directed then dadj_lists else uadj_lists
+        -- uadj_lists is the list of undirected adjacency lists
+        uadj_lists = map (\v ->sort $ map (otherElem v) (filter (\e -> elem v e) graph)) [0..(glen - 1)]
+        -- dadj_lists is directed version of uadj_lists
+        dadj_lists= map (\v ->sort $ map (otherElem v) (filter (\e -> (last e) == v) graph)) [0..(glen -1)]
         cadj_lists = unlines' $ zipWith (\l i -> "    const unsigned int vo" ++ (show i) ++ "[" ++ (show $ length l) ++ "] = {" ++ (trim $ show l) ++ "};") adj_lists [0..]
         voss = "    const unsigned int * vos[" ++ (show glen) ++ "] = {" ++ (tail $ concat $ zipWith (++) [",vo" | x <- [0..]] (map show [0..(gmax)])) ++ "};"
 --        (init $ tail $ tail $ zipWith (++) [",vo" | x <- [0..]] (map show [0..gmax])) ++ "};"
@@ -978,12 +982,12 @@ generateFindCyCode graph cfilename justCount = unlines $ map (\s -> formatByDict
 ifElseError :: Bool -> t -> t
 ifElseError bool thn = if bool then thn else error "Output file unfinished or unmatched to graph."
 
-graphToNumCycles :: [[Int]] -> IO Int
-graphToNumCycles graphlist = do
+graphToNumCycles :: [[Int]] -> Bool -> IO Int
+graphToNumCycles graphlist directed = do
   removeIfExists "countcy_temp.c"
   removeIfExists "countcy_temp"
   let tempfilename = "countcy_temp.c"
-  let code = generateFindCyCode graphlist tempfilename True
+  let code = generateFindCyCode graphlist tempfilename True directed
   cfile <- openFile "countcy_temp.c" WriteMode
   write <- hPutStr cfile code
   hClose cfile
@@ -1004,13 +1008,13 @@ processCycles cycles_string graph = ifElseError good ((\s ->(map read_cy $ trim 
     eq_graph graph s = (show graph) == s
     read_cy cy       = trimList $ read cy
 
-graphToCycles :: [[Int]] -> IO [[Int]]
-graphToCycles graphlist = do
+graphToCycles :: [[Int]] -> Bool -> IO [[Int]]
+graphToCycles graphlist directed = do
   removeIfExists "findcy_temp.c"
   removeIfExists "findcy_temp"
   removeIfExists "findcy_temp.txt"
   let tempfilename = "findcy_temp.c"
-  let code = generateFindCyCode graphlist tempfilename False
+  let code = generateFindCyCode graphlist tempfilename False directed
   cfile <- openFile "findcy_temp.c" WriteMode
   write <- hPutStr cfile code
   hClose cfile
@@ -1028,7 +1032,7 @@ graphToCycles graphlist = do
 --graphToMaxcyCode :: [[Int]] -> Int -> [Char] -> [Char] -- IO ()
 graphToMaxcyCode graphlist splitbits name = do
   -- putStrLn "1"
-  cycles <- graphToCycles graphlist
+  cycles <- graphToCycles graphlist False
   -- putStrLn "2"
   let endhere = splitbits
 -- ???????????????????????
@@ -1085,6 +1089,7 @@ runAllInDir dir = do
           | (last name) == '.' = False
           | otherwise         = execFile $ init name
 
+
 cutUntoChar :: [Char] -> Char -> [Char]
 cutUntoChar [] _ = []
 cutUntoChar (x:xs) char
@@ -1097,12 +1102,37 @@ readBins ('0':xs) = 0 : (readBins xs)
 readBins ('1':xs) = 1 : (readBins xs)
 readBins (_:xs)   = error "list passed not composed of 0's and 1's"
 
--- solutionStrToTup :: [Char] -> ([Int], Int)
--- solutionStrToTup str = (readBins bins, read num)
---   where
---     bins = cutUntoChar (tail str) ','
---     num  = reverse $ cutUntoChar (reverse $ trim str) ','
+solutionStrToTup :: [Char] -> ([Int], Int)
+solutionStrToTup str = (readBins bins, read num)
+  where
+    bins = cutUntoChar (tail str) ','
+    num  = reverse $ cutUntoChar (reverse $ trim str) ','
 
+--orientGraph :: [Int] -> [[Int]] -> [[Int]] --'0' forward (a<b)
+orientGraph directions graph = if good then map (\tup ->if fst tup then snd tup else reverse $ snd tup) edgeTupList else error "bad graph or directions"
+  where
+    edgeTupList = zip (map (\x ->x==0) directions) graph
+    good = sameLen && orderedEdges && orderedGraph
+    sameLen = (length directions) == (length graph)
+    orderedEdges = foldl (\prev next ->prev && ((head next) < (last next))) True graph
+    orderedGraph = fst $ foldl (\prev next -> if fst prev then ((snd prev) < next, next) else (False, [0,0])) (True, [0,0]) graph
+
+strSolutionPipe1 :: [Char] -> [[Int]] -> (([Int], Int), [[Int]])
+strSolutionPipe1 string graph = (solutionStrToTup string, graph)
+
+strSolutionPipe2 :: (([Int], Int), [[Int]]) -> ([[Int]], Int)
+strSolutionPipe2 ((binList, number), graph) = (orientGraph binList graph, number)
+
+--strSolutionPipe3 :: ([[Int]], Int) -> IO Bool
+strSolutionPipe3 (digraph, number) = do
+  ioNum <- graphToNumCycles digraph True
+  supposedNum <- return number
+  return $ ioNum == supposedNum
+
+strSolutionPipe :: [Char] -> [[Int]] -> IO Bool
+strSolutionPipe string graph = strSolutionPipe3 $ strSolutionPipe2 $ strSolutionPipe1 string graph
+
+checkMaxCySolution :: FilePath -> IO Bool
 checkMaxCySolution file = do
   handle <- openFile file ReadMode
   solutionFile <- catch (readFile file) handler
@@ -1110,17 +1140,25 @@ checkMaxCySolution file = do
   graph <- return $ read $ head $ lines solutionFile :: IO [[Int]]
   solutionsStr <- return $ trim $ lines solutionFile
   putStrLn $ show graph
-  -- solutionsTup <- solutionsStrToTup solutionsStr
   -- here, need to write function converting a single solution into (binary list, number)->(digraph, number)->(number from graphToNumCycles, number)->(fst %) == (snd %)
   -- Solutions are of the form "[01010101001,6784765]"
-
+  whichValid <- mapM (\str -> return $ strSolutionPipe str graph) solutionsStr :: IO [IO Bool]
+  whichValidTups <- return $ zip whichValid (map return [0..])
+  invalidTups <- filterM trueFst whichValidTups
+  invalid <- mapM snd invalidTups :: IO [Int]
+  putStrLn "[Begin failures]"
+  (putStrLn . show) invalid
+  putStrLn "[End failures]"
+  allGood <- return $ invalid == []
+  return $ allGood && (finished $ lines solutionFile)
   where
+    trueFst x0 = do
+      first <- fst x0
+      notted <- return $ not first
+      return notted
     finished = \list ->(last list) == "FINISHED."
-    --good_graph = \s ->eq_graph graph $ head $ lines s
-    --eq_graph graph s = (show graph) == s
     handler :: SomeException -> IO String
     handler _ = error "The results have disappeared under my nose."
-
 
 -- k4g :: [[Int]]
 -- k4g = [[0,1],[0,2],[0,3],[1,2],[1,3],[2,3]]

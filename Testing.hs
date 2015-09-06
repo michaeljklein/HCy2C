@@ -1,5 +1,6 @@
 --module Testing where
 import Forcy
+import Test.Hspec
 import Test.QuickCheck
 import Test.QuickCheck.Monadic
 
@@ -60,7 +61,7 @@ wheelGraphNumCy n = 2*((n - 1)*(n - 2) + 1) -- 2*\x added because undirected, no
 
 testNumCy :: [[Int]] -> Int -> Property
 testNumCy graph result = monadicIO $ do
-  resultFromC <- run $ graphToNumCycles graph
+  resultFromC <- run $ graphToNumCycles graph False
   resultKnown <- return result
   assert (resultFromC == resultKnown)
 
@@ -71,13 +72,6 @@ prop_goodCompleteGraph n = testNumCy graph result
     result = completeGraphNumCy nGood
     nGood  = if (abs n) > 2 then (abs n) else 3
 
-prop_goodWheelGraph :: Int -> Property
-prop_goodWheelGraph n = testNumCy graph result
-  where
-    graph  = wheelGraph nGood
-    result = wheelGraphNumCy nGood
-    nGood  = if (abs n) > 0 then (abs n) else 1
-
 prop_goodShuttleGraph :: Int -> Property
 prop_goodShuttleGraph n = testNumCy graph result
   where
@@ -85,14 +79,38 @@ prop_goodShuttleGraph n = testNumCy graph result
     result = shuttleGraphNumCy nGood
     nGood  = if (abs n) > 3 then (abs n) else 4
 
+prop_goodWheelGraph :: Int -> Property
+prop_goodWheelGraph n = testNumCy graph result
+  where
+    graph  = wheelGraph nGood
+    result = wheelGraphNumCy nGood
+    nGood  = if (abs n) > 0 then (abs n) else 1
+
 -- main = do
 --   quickCheck prop_goodWheelGraph
 --   quickCheck prop_goodShuttleGraph
 
-
+main :: IO ()
+main = hspec $ do
+  -- describe "read" $ do
+  --   context "when used with ints" $ do
+  --     it "is inverse to show" $ property $
+  --       \x -> (read . show) x == (x :: Int)
+  describe "graphToNumCycles" $ do
+    context "when used with complete graphs" $ do
+      it "has Sum[Product[(i - k + n)/k, {i, 1, k}], {k, 3, n}] cycles" $ property $
+        prop_goodCompleteGraph
+    context "when used with shuttle graphs" $ do
+      it "has (2 + 3*n + n^2) cycles" $ property $
+        prop_goodShuttleGraph
+    context "when used with wheel graphs" $ do
+      it "has 2*((n-1)*(n-2) + 1) cycles" $ property $
+        prop_goodWheelGraph
 
 -- MAKE sure cyclelists out of graphToCycles are properly sorted by snd of cycle.
 -- Randomly rename/shuffle edge labels and make sure that the results are the same.
 -- Use Test.QuickCheck.Monadic
-
+-- Move checkMaxCySolutions to this file.
+-- Add function to go graph -> files -> check all
+-- Add option for splitbits in above function
 
