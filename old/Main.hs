@@ -1,3 +1,6 @@
+Module ForCycles
+(
+
 import Control.Exception ( SomeException, throwIO, catch )
 import Control.Monad ( liftM, Monad((>>=), return), when, mapM_ )
 import Data.Bits ( Bits((.&.), (.|.), bit) )
