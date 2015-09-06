@@ -7,7 +7,6 @@ module Forcy
     , graphToMaxcyCode
     , compileAllInDir
     , runAllInDir
-    , checkMaxCySolution
     )
     where
 
@@ -125,8 +124,6 @@ removeDirIfExists foldername = removeDirectoryRecursive foldername `catch` handl
 --      Warning: no synopsis given. You should edit the .cabal file and add one.
 --      You may want to edit the .cabal file and add a Description field.
 --
---      ADD OPTION FOR FINDCY OF DIGRAPH
---
 --      profile!:
 --              consider whether to optimize r() further
 --                  use "A ^ B" instead of "A /= B"
@@ -135,17 +132,17 @@ removeDirIfExists foldername = removeDirectoryRecursive foldername `catch` handl
 --              write-up number of steps (something like ceiling(forms/64)*2^numedges) and find constant of ~how many cycles per asympt. step
 --
 --      (long)
---              add support for QuickCheck
+--              add support for QuickCheck (In progress)
 --              write an unfolder to unfold n loops of findcy's tree search
 --              write an interface to opencl to run in one thread at a time or auto-split work among threads (manager and push 'medium' tasks to others)
 --              write a more formal interface to the whole thing, incl. a general graph -> minimal nontrivial parts -> complete solution
---                compile all in folder
---                run all in folder
---                check maxcy solution
+--                compile all in folder (Done)
+--                run all in folder (Done)
+--                check maxcy solution (Done)
 --                check all in folder
 --                reduce solutions
---                convert solution to digraph
---                still need solution files to graph
+--                convert solution to digraph (Done)
+--                still need solution files to graph (Done)
 --
 --      (mild)
 --              fix other functions to not use a state variable
@@ -176,6 +173,7 @@ removeDirIfExists foldername = removeDirectoryRecursive foldername `catch` handl
 --      profile and lightly optimize the haskell code -> current state: ghc breaks the printing of 2nd/2 code files and ghci works
 --      remove 'ONES' if not needed
 --      "The -ddump-minimal-imports option to ghc writes the cleaned-up list to M.imports, where M is the module being compiled."
+--      ADD OPTION FOR FINDCY OF DIGRAPH
 --
 ---------------------------------------------------------------------------------------------------------------------------------------
 -------------------------------------------------------------------------------------------------------------------------------------
@@ -1088,77 +1086,6 @@ runAllInDir dir = do
           | name == []         = True
           | (last name) == '.' = False
           | otherwise         = execFile $ init name
-
-
-cutUntoChar :: [Char] -> Char -> [Char]
-cutUntoChar [] _ = []
-cutUntoChar (x:xs) char
-    | x == char  = []
-    | otherwise = x : (cutUntoChar xs char)
-
-readBins :: [Char] -> [Int]
-readBins [] = []
-readBins ('0':xs) = 0 : (readBins xs)
-readBins ('1':xs) = 1 : (readBins xs)
-readBins (_:xs)   = error "list passed not composed of 0's and 1's"
-
-solutionStrToTup :: [Char] -> ([Int], Int)
-solutionStrToTup str = (readBins bins, read num)
-  where
-    bins = cutUntoChar (tail str) ','
-    num  = reverse $ cutUntoChar (reverse $ trim str) ','
-
---orientGraph :: [Int] -> [[Int]] -> [[Int]] --'0' forward (a<b)
-orientGraph directions graph = if good then map (\tup ->if fst tup then snd tup else reverse $ snd tup) edgeTupList else error "bad graph or directions"
-  where
-    edgeTupList = zip (map (\x ->x==0) directions) graph
-    good = sameLen && orderedEdges && orderedGraph
-    sameLen = (length directions) == (length graph)
-    orderedEdges = foldl (\prev next ->prev && ((head next) < (last next))) True graph
-    orderedGraph = fst $ foldl (\prev next -> if fst prev then ((snd prev) < next, next) else (False, [0,0])) (True, [0,0]) graph
-
-strSolutionPipe1 :: [Char] -> [[Int]] -> (([Int], Int), [[Int]])
-strSolutionPipe1 string graph = (solutionStrToTup string, graph)
-
-strSolutionPipe2 :: (([Int], Int), [[Int]]) -> ([[Int]], Int)
-strSolutionPipe2 ((binList, number), graph) = (orientGraph binList graph, number)
-
---strSolutionPipe3 :: ([[Int]], Int) -> IO Bool
-strSolutionPipe3 (digraph, number) = do
-  ioNum <- graphToNumCycles digraph True
-  supposedNum <- return number
-  return $ ioNum == supposedNum
-
-strSolutionPipe :: [Char] -> [[Int]] -> IO Bool
-strSolutionPipe string graph = strSolutionPipe3 $ strSolutionPipe2 $ strSolutionPipe1 string graph
-
-checkMaxCySolution :: FilePath -> IO Bool
-checkMaxCySolution file = do
-  handle <- openFile file ReadMode
-  solutionFile <- catch (readFile file) handler
-  --goodFile <- return (finished $ lines solutionFile) -- && (good_graph solutionFile)
-  graph <- return $ read $ head $ lines solutionFile :: IO [[Int]]
-  solutionsStr <- return $ trim $ lines solutionFile
-  putStrLn $ show graph
-  -- here, need to write function converting a single solution into (binary list, number)->(digraph, number)->(number from graphToNumCycles, number)->(fst %) == (snd %)
-  -- Solutions are of the form "[01010101001,6784765]"
-  whichValid <- mapM (\str -> return $ strSolutionPipe str graph) solutionsStr :: IO [IO Bool]
-  whichValidTups <- return $ zip whichValid (map return [0..])
-  invalidTups <- filterM trueFst whichValidTups
-  invalid <- mapM snd invalidTups :: IO [Int]
-  putStrLn "[Begin failures]"
-  (putStrLn . show) invalid
-  putStrLn "[End failures]"
-  allGood <- return $ invalid == []
-  return $ allGood && (finished $ lines solutionFile)
-  where
-    trueFst x0 = do
-      first <- fst x0
-      notted <- return $ not first
-      return notted
-    finished = \list ->(last list) == "FINISHED."
-    handler :: SomeException -> IO String
-    handler _ = error "The results have disappeared under my nose."
 
 -- k4g :: [[Int]]
 -- k4g = [[0,1],[0,2],[0,3],[1,2],[1,3],[2,3]]
