@@ -4,9 +4,10 @@ module Test.Testing where
 import Cycles.Forcy
 import Control.Exception (catch, SomeException, throwIO)
 import Control.Monad
-import Data.List (sort)
+import Data.List (sort, group)
 import Test.Hspec
 import Test.QuickCheck
+import Test.QuickCheck.Gen
 import Test.QuickCheck.Monadic
 import System.Directory
 import System.IO
@@ -16,8 +17,8 @@ import System.IO.Error ( isDoesNotExistError )
 
 -- Because the number of cycles and edges tried by quickcheck can blow up quickly, these are the ranges allowable for (reasonably) fast tests
 -- Tested on Macbook Pro 15", Late 2011, 8 GB RAM, 2.5 GHZ Intel Core i7, 64-bit
-maxNumCyForTest = completeGraphNumCy 10
-maxNumEdgesForTest = 1000
+maxNumCyForTest = completeGraphNumCy 6
+maxNumEdgesForTest = 100
 
 removeDirIfExists :: FilePath -> IO ()
 removeDirIfExists foldername = removeDirectoryRecursive foldername `catch` handleExists
@@ -115,7 +116,9 @@ completeGraph n = sort2 $ [[a,b] | a <- [0..n-1], b <- [0..n-1], a<b]
 -- cycles size k require three choices: n possibilities, n-1, n-2 etc.
 -- Sum[Product[(i - k + n)/2 k, {i, 1, k}], {k, 3, n}] (Undirected cycles, '/2' removed for directed cycles)
 completeGraphNumCy :: Int -> Int --Integral a => a -> a
-completeGraphNumCy n = foldl (+) 0 [(div (foldl (*) 1 [i - k + n | i <- [1..k]]) k) | k <- [3..n]]
+completeGraphNumCy n = if good then foldl (+) 0 [(div (foldl (*) 1 [i - k + n | i <- [1..k]]) k) | k <- [3..n]] else 10^12
+  where
+    good = n < 20
 
 
 -- | This function returns the shuttle graph of size n, which looks like <|=|=|=|>
@@ -131,6 +134,7 @@ completeGraphNumCy n = foldl (+) 0 [(div (foldl (*) 1 [i - k + n | i <- [1..k]])
 --    There are (n-1) cycles that are an adjacent triple of units
 --    etc.
 -- Because of this property, this graph has exactly (2 + 3 n + n^2)/2 cycles (equal to TriangularNumber(n+1)).
+-- This graph has 8 + 3*n edges
 shuttleGraph :: Int -> [[Int]] --Integral a => a -> [[a]]
 shuttleGraph n = sort2 $ [0,1] : [0,2] : [1,2] : [2*n-1, 2*n+1] : [2*n, 2*n+1] : [[m, m - 2] | m <- [3..2*n]] ++ [[m, m+1] | m <- [3,5..2*n-1]]
 
@@ -140,6 +144,7 @@ shuttleGraphNumCy n = (2 + 3*n + n^2) -- modified from div (2 + 3*n + n^2) 2, be
 
 -- | This function returns the wheel graph of size n
 -- Constructed by making the spokes from '0', adding all but one of the outer cycle, then adding the final edge
+-- This graph has 2*(n+1) edges
 wheelGraph :: Int -> [[Int]] --Integral a => a -> [[a]]
 wheelGraph n = sort2 $ [[0, i] | i <- [1..(n-1)]] ++ [[j, j+1] | j <- [1..(n-2)]] ++ [[1, n-1]]
 
@@ -158,13 +163,52 @@ wheelGraphNumCy n = 2*((n - 1)*(n - 2) + 1) -- 2*\x added because undirected, no
 resizeN :: Int -> Int -> Int
 resizeN n whichGraph = bringDown $ bringUpToMin (abs n)
   where
-    bringDown x = if lessThanMax x then x else bringDown $ bringDownOnce x
-    bringDownOnce x = minsize + (div x ( 1 + (mod x 6))) -- magic number 6 is an arbitrary small prime - 1
+    bringDown x = if lessThanMax x then x else 4 + (mod x 5) -- this gives a range of [4..8]
     bringUpToMin x = if x < minsize then minsize else x
     lessThanMax x = (maxNumCyForTest >= (numCy x)) && (maxNumEdgesForTest >= (numEd x))
     minsize = [3, 3, 4, 4] !! whichGraph
     graph = [cycleGraph, completeGraph, shuttleGraph, wheelGraph] !! whichGraph
     numCy = [\_ -> 2, completeGraphNumCy, shuttleGraphNumCy, wheelGraphNumCy] !! whichGraph
+    numEd = [\m ->m, \m ->div (n*(n-1)) 2, \m ->8 + 3*m, \m ->2*(m+1)] !! whichGraph
+
+-- | Taken from http://stackoverflow.com/questions/16108714/haskell-removing-duplicates-from-a-list
+rmdups :: (Ord a) => [a] -> [a]
+rmdups = map head . group . sort
+
+listSwap :: [Int] -> [Int] -> [Int]
+listSwap list swaps = if ((length list) < 1) || ((length swaps) < 2) then list else map switch list
+  where
+    switch x
+      | x == a1 = b1
+      | x == b1 = a1
+      | otherwise = x
+    len = length list
+    a0 = swaps !! 0
+    b0 = swaps !! 1
+    a1 = rerange a0
+    b1 = rerange a1
+    rerange x = (mod (x-1) len) + 1 -- this moves x into the range [1..len]
+
+prop_listSwapReversible :: [Int] -> [Int] -> Property
+prop_listSwapReversible inlist seeds = property ( (listSwap (listSwap list (take 2 seeds)) (reverse (take 2 seeds))) == list )
+  where
+    list = rmdups inlist
+
+permuteList :: [Int] -> [Int] -> [Int]
+permuteList list seeds
+    | ((length list) < 1) || ((length seeds) < 2) = list
+    | otherwise = permuteList (listSwap list (take 2 seeds)) (tail seeds)
+
+shuffleGraph :: [[Int]] -> [Int] -> [[Int]]
+shuffleGraph graph seeds = map (\e ->map (\v ->permuted !! v) e) graph
+  where
+    permuted = permuteList [0..(maximum $ map maximum graph)] seeds
+
+testNumCyShuffled :: [[Int]] -> Int -> [Int] -> Property
+testNumCyShuffled graph result seeds = monadicIO $ do
+  resultFromC <- run $ graphToNumCycles graph False
+  resultKnown <- return result
+  assert (resultFromC == resultKnown)
 
 -- | This property takes a graph and a known result for the number of undirected cycles to test graphToNumCycles
 testNumCy :: [[Int]] -> Int -> Property
@@ -179,8 +223,21 @@ prop_goodCycleGraphNumCy n = testNumCy graph 2
     graph = cycleGraph nGood
     nGood = resizeN n 0
 
+prop_goodCycleGraphNumCyShuffled :: Int -> [Int] -> Property
+prop_goodCycleGraphNumCyShuffled n seeds = testNumCyShuffled graph 2 seeds
+  where
+    graph = cycleGraph nGood
+    nGood = resizeN n 0
+
 prop_goodCompleteGraphNumCy :: Int -> Property
 prop_goodCompleteGraphNumCy n = testNumCy graph result
+  where
+    graph  = completeGraph nGood
+    result = completeGraphNumCy nGood
+    nGood  = resizeN n 1
+
+prop_goodCompleteGraphNumCyShuffled :: Int -> [Int] -> Property
+prop_goodCompleteGraphNumCyShuffled n seeds = testNumCyShuffled graph result seeds
   where
     graph  = completeGraph nGood
     result = completeGraphNumCy nGood
@@ -193,12 +250,32 @@ prop_goodShuttleGraphNumCy n = testNumCy graph result
     result = shuttleGraphNumCy nGood
     nGood  = resizeN n 2
 
+prop_goodShuttleGraphNumCyShuffled :: Int -> [Int] -> Property
+prop_goodShuttleGraphNumCyShuffled n seeds = testNumCyShuffled graph result seeds
+  where
+    graph  = shuttleGraph nGood
+    result = shuttleGraphNumCy nGood
+    nGood  = resizeN n 2
+
 prop_goodWheelGraphNumCy :: Int -> Property
 prop_goodWheelGraphNumCy n = testNumCy graph result
   where
     graph  = wheelGraph nGood
     result = wheelGraphNumCy nGood
     nGood  = resizeN n 3
+
+prop_goodWheelGraphNumCyShuffled :: Int -> [Int] -> Property
+prop_goodWheelGraphNumCyShuffled n seeds = testNumCyShuffled graph result seeds
+  where
+    graph  = wheelGraph nGood
+    result = wheelGraphNumCy nGood
+    nGood  = resizeN n 3
+
+trimByLenMod :: [a] -> Int -> [a]
+trimByLenMod list moddedsize = take thisMany list
+  where
+    thisMany = (mod ((abs moddedsize)-1) len) + 1
+    len = length list
 
 testMaxCy' :: [[Int]] -> Int -> IO Bool
 testMaxCy' graph splitbits = do
@@ -228,27 +305,34 @@ testMaxCy' graph splitbits = do
 testMaxCy :: [[Int]] -> Int -> Property
 testMaxCy graph splitbits = monadicIO $ run $ testMaxCy' graph splitbits
 
+-- | This value should be kept small; it will generate 2^maxsplitbits MaxCy code pieces,
+-- each of which will generate an exponential (by back of a napkin calculation) number of possible solutions,
+-- each of which will be checked by graphToNumCycles.
+maxsplitbits = (5) + 1
 
-prop_goodCompleteGraphFindCy :: Int -> Int -> Property
-prop_goodCompleteGraphFindCy n splitbits = testMaxCy graph splitbitsGood
+prop_goodCompleteGraphMaxCy :: Int -> Int -> Property
+prop_goodCompleteGraphMaxCy n splitbits = testMaxCy graph splitbitsGood
   where
     graph         = completeGraph nGood
-    splitbitsGood = if ((abs splitbits) >= 0) && ((abs splitbits) < ((div (n*(n-1)) 2) - 7)) then (abs splitbits) else 0
+    splitbitsGood = if ((abs splitbits) >= 0) && ((abs splitbits) < maxsplitbits) then (abs splitbits) else 0
     nGood         = resizeN n 1
 
-prop_goodShuttleGraphFindCy :: Int -> Int -> Property
-prop_goodShuttleGraphFindCy n splitbits = testMaxCy graph splitbitsGood
+prop_goodShuttleGraphMaxCy :: Int -> Int -> Property
+prop_goodShuttleGraphMaxCy n splitbits = testMaxCy graph splitbitsGood
   where
     graph         = shuttleGraph nGood
-    splitbitsGood = if ((abs splitbits) >= 0) && ((abs splitbits) < (3*n - 9)) then (abs splitbits) else 0
+    splitbitsGood = if ((abs splitbits) >= 0) && ((abs splitbits) < maxsplitbits) then (abs splitbits) else 0
     nGood         = resizeN n 2
 
-prop_goodWheelGraphFindCy :: Int -> Int -> Property
-prop_goodWheelGraphFindCy n splitbits = testMaxCy graph splitbitsGood
+prop_goodWheelGraphMaxCy :: Int -> Int -> Property
+prop_goodWheelGraphMaxCy n splitbits = testMaxCy graph splitbitsGood
   where
     graph         = wheelGraph nGood
-    splitbitsGood = if ((abs splitbits) >= 0) && ((abs splitbits) < ((div (n*(n-1)) 2) - 7)) then (abs splitbits) else 0
+    splitbitsGood = if ((abs splitbits) >= 0) && ((abs splitbits) < maxsplitbits) then (abs splitbits) else 0
     nGood         = resizeN n 3
+
+
+
 
 main :: IO ()
 main = hspec $ do
@@ -256,19 +340,46 @@ main = hspec $ do
   --   context "when used with ints" $ do
   --     it "is inverse to show" $ property $
   --       \x -> (read . show) x == (x :: Int)
+  describe "listSwap" $ do
+    context "when used with a pairs of [Int]'s" $ do
+      it "is its own inverse" $ property $
+        prop_listSwapReversible
   describe "graphToNumCycles" $ do
     context "when used with a simple cycle" $ do
       it "has 2 cycles" $ property $
         prop_goodCycleGraphNumCy
+    context "when used with a simple cycle (shuffled)" $ do
+      it "has 2 cycles" $ property $
+        prop_goodCycleGraphNumCyShuffled
     context "when used with complete graphs" $ do
       it "has Sum[Product[(i - k + n)/k, {i, 1, k}], {k, 3, n}] cycles" $ property $
         prop_goodCompleteGraphNumCy
+    context "when used with complete graphs (shuffled)" $ do
+      it "has Sum[Product[(i - k + n)/k, {i, 1, k}], {k, 3, n}] cycles" $ property $
+        prop_goodCompleteGraphNumCyShuffled
     context "when used with shuttle graphs" $ do
       it "has (2 + 3*n + n^2) cycles" $ property $
         prop_goodShuttleGraphNumCy
+    context "when used with shuttle graphs (shuffled)" $ do
+      it "has (2 + 3*n + n^2) cycles" $ property $
+        prop_goodShuttleGraphNumCyShuffled
     context "when used with wheel graphs" $ do
       it "has 2*((n-1)*(n-2) + 1) cycles" $ property $
         prop_goodWheelGraphNumCy
+    context "when used with wheel graphs (shuffled)" $ do
+      it "has 2*((n-1)*(n-2) + 1) cycles" $ property $
+        prop_goodWheelGraphNumCyShuffled
+  describe "graphToMaxCyCode" $ do
+    context "when used with complete graphs" $ do
+      it "agrees in *all* its solutions with graphToNumCycles" $ property $
+        prop_goodCompleteGraphMaxCy
+    context "when used with shuttle graphs" $ do
+      it "agrees in *all* its solutions with graphToNumCycles" $ property $
+        prop_goodShuttleGraphMaxCy
+    context "when used with wheel graphs" $ do
+      it "agrees in *all* its solutions with graphToNumCycles" $ property $
+        prop_goodWheelGraphMaxCy
+
 
 -- MAKE sure cyclelists out of graphToCycles are properly sorted by snd of cycle.
 -- Randomly rename/shuffle edge labels and make sure that the results are the same.

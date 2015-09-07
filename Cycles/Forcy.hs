@@ -1128,7 +1128,7 @@ compileAllInDir dir = do
   files <- getDirectoryContents dir
   let cFile = \file ->((last file) == 'c') && ((last $ init file) == '.')
   code_files <- return $ filter cFile files
-  let compile file = readProcess "gcc" [file, "-O3", "-o", "findcy_temp"] [] >>= putStrLn
+  let compile file = readProcess "gcc" [dir ++ "/" ++ file, "-O3", "-o", "findcy_temp"] [] >>= putStrLn
   mapM_ compile code_files
 
 runAllInDir :: [Char] -> IO ()
