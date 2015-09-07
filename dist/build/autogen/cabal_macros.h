@@ -21,6 +21,13 @@
   (major1) == 1 && (major2) <  2 || \
   (major1) == 1 && (major2) == 2 && (minor) <= 1)
 
+/* package hspec-2.2.0 */
+#define VERSION_hspec "2.2.0"
+#define MIN_VERSION_hspec(major1,major2,minor) (\
+  (major1) <  2 || \
+  (major1) == 2 && (major2) <  2 || \
+  (major1) == 2 && (major2) == 2 && (minor) <= 0)
+
 /* package process-1.2.0.0 */
 #define VERSION_process "1.2.0.0"
 #define MIN_VERSION_process(major1,major2,minor) (\

@@ -139,26 +139,73 @@ testNumCy graph result = monadicIO $ do
   resultKnown <- return result
   assert (resultFromC == resultKnown)
 
-prop_goodCompleteGraph :: Int -> Property
-prop_goodCompleteGraph n = testNumCy graph result
+prop_goodCompleteGraphNumCy :: Int -> Property
+prop_goodCompleteGraphNumCy n = testNumCy graph result
   where
     graph  = completeGraph nGood
     result = completeGraphNumCy nGood
     nGood  = if (abs n) > 2 then (abs n) else 3
 
-prop_goodShuttleGraph :: Int -> Property
-prop_goodShuttleGraph n = testNumCy graph result
+prop_goodShuttleGraphNumCy :: Int -> Property
+prop_goodShuttleGraphNumCy n = testNumCy graph result
   where
     graph  = shuttleGraph nGood
     result = shuttleGraphNumCy nGood
     nGood  = if (abs n) > 3 then (abs n) else 4
 
-prop_goodWheelGraph :: Int -> Property
-prop_goodWheelGraph n = testNumCy graph result
+prop_goodWheelGraphNumCy :: Int -> Property
+prop_goodWheelGraphNumCy n = testNumCy graph result
   where
     graph  = wheelGraph nGood
     result = wheelGraphNumCy nGood
     nGood  = if (abs n) > 0 then (abs n) else 1
+
+
+testMaxCy :: [[Int]] -> Int -> Property
+testMaxCy graph splitbits = do
+  graphToMaxcyCode graph splitbits foldername
+  compileAllInDir foldername
+  runAllInDir foldername
+  files <- getDirectoryContents foldername
+  let txtFile = \file ->((last file) == 't') && ((last $ init file) == 'x') && ((last $ init $ init file) == 't') && ((last $ init $ init $ init file) == '.')
+  text_files <- return $ filter txtFile files
+  checked <- mapM checkMaxCySolution text_files
+  checkedTups <- return $ zip checked (map return [0..])
+  invalidTups <- filterM trueFst checkedTups
+  invalid <- mapM snd invalidTups :: IO [Int]
+  putStrLn "[Begin failures]"
+  (putStrLn . show) invalid
+  putStrLn "[End failures]"
+  allGood <- return $ invalid == []
+  when allGood (removeDirIfExists foldername)
+  allGood
+  where
+    trueFst x0 = do
+      first <- fst x0
+      notted <- return $ not first
+      return notted
+    foldername = "testMaxCy"
+
+prop_goodCompleteGraphFindCy :: Int -> Int -> Property
+prop_goodCompleteGraphFindCy n splitbits = testMaxCy graph splitbitsGood
+  where
+    graph         = completeGraph nGood
+    splitbitsGood = if ((abs splitbits) >= 0) && ((abs splitbits) < ((n*(n-1)/2) - 3)) then (abs splitbits) else 0
+    nGood         = if (abs n) > 2 then (abs n) else 3
+
+prop_goodShuttleGraphFindCy :: Int -> Int -> Property
+prop_goodShuttleGraphFindCy n splitbits = testMaxCy graph splitbitsGood
+  where
+    graph         = shuttleGraph nGood
+    splitbitsGood = if ((abs splitbits) >= 0) && ((abs splitbits) < (3*n - 5) then (abs splitbits) else 0
+    nGood         = if (abs n) > 3 then (abs n) else 4
+
+prop_goodWheelGraphFindCy :: Int -> Int -> Property
+prop_goodWheelGraphFindCy n splitbits = testMaxCy graph splitbitsGood
+  where
+    graph         = wheelGraph nGood
+    splitbitsGood = if ((abs splitbits) >= 0) && ((abs splitbits) < ((n*(n-1)/2) - 3)) then (abs splitbits) else 0
+    nGood         = if (abs n) > 0 then (abs n) else error "hi" --1
 
 main :: IO ()
 main = hspec $ do
@@ -169,13 +216,13 @@ main = hspec $ do
   describe "graphToNumCycles" $ do
     context "when used with complete graphs" $ do
       it "has Sum[Product[(i - k + n)/k, {i, 1, k}], {k, 3, n}] cycles" $ property $
-        prop_goodCompleteGraph
+        prop_goodCompleteGraphNumCy
     context "when used with shuttle graphs" $ do
       it "has (2 + 3*n + n^2) cycles" $ property $
-        prop_goodShuttleGraph
+        prop_goodShuttleGraphNumCy
     context "when used with wheel graphs" $ do
       it "has 2*((n-1)*(n-2) + 1) cycles" $ property $
-        prop_goodWheelGraph
+        prop_goodWheelGraphNumCy
 
 -- MAKE sure cyclelists out of graphToCycles are properly sorted by snd of cycle.
 -- Randomly rename/shuffle edge labels and make sure that the results are the same.
