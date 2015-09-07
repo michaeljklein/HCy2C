@@ -9,12 +9,12 @@ void print_cycle(unsigned int * this_current_path){
 }
 
 int main(int argc, const char * argv[]) {
-    const unsigned int vo0[2] = {1,3};
-    const unsigned int vo1[2] = {0,2};
-    const unsigned int vo2[2] = {1,3};
-    const unsigned int vo3[2] = {0,2};
+    const unsigned int vo0[3] = {1,2,3};
+    const unsigned int vo1[3] = {0,2,3};
+    const unsigned int vo2[3] = {0,1,3};
+    const unsigned int vo3[3] = {0,1,2};
     const unsigned int * vos[4] = {vo0,vo1,vo2,vo3};
-    const unsigned int vomax[4] = {2,2,2,2};
+    const unsigned int vomax[4] = {3,3,3,3};
     unsigned int current_path[4];
     unsigned int adjacency_path[4];
     register unsigned int path_position = 0;
