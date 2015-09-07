@@ -7,6 +7,7 @@ module Forcy
     , graphToMaxcyCode
     , compileAllInDir
     , runAllInDir
+    , trim
     )
     where
 

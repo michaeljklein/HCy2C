@@ -16,11 +16,11 @@ version :: Version
 version = Version [0,1,0,0] []
 bindir, libdir, datadir, libexecdir, sysconfdir :: FilePath
 
-bindir     = "/Users/michaelklein/Desktop/Hcy2c/.cabal-sandbox/bin"
-libdir     = "/Users/michaelklein/Desktop/Hcy2c/.cabal-sandbox/lib/x86_64-osx-ghc-7.8.3/Hcy2c-0.1.0.0"
-datadir    = "/Users/michaelklein/Desktop/Hcy2c/.cabal-sandbox/share/x86_64-osx-ghc-7.8.3/Hcy2c-0.1.0.0"
-libexecdir = "/Users/michaelklein/Desktop/Hcy2c/.cabal-sandbox/libexec"
-sysconfdir = "/Users/michaelklein/Desktop/Hcy2c/.cabal-sandbox/etc"
+bindir     = "/Users/michaelklein/Library/Haskell/bin"
+libdir     = "/Users/michaelklein/Library/Haskell/ghc-7.8.3-x86_64/lib/Hcy2c-0.1.0.0"
+datadir    = "/Users/michaelklein/Library/Haskell/share/ghc-7.8.3-x86_64/Hcy2c-0.1.0.0"
+libexecdir = "/Users/michaelklein/Library/Haskell/libexec"
+sysconfdir = "/Users/michaelklein/Library/Haskell/etc"
 
 getBinDir, getLibDir, getDataDir, getLibexecDir, getSysconfDir :: IO FilePath
 getBinDir = catchIO (getEnv "Hcy2c_bindir") (\_ -> return bindir)

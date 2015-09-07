@@ -1,10 +1,21 @@
 --module Testing where
 import Forcy
+import Control.Exception (catch, SomeException, throwIO)
+import Control.Monad
 import Test.Hspec
 import Test.QuickCheck
 import Test.QuickCheck.Monadic
+import System.Directory
+import System.IO
+import System.IO.Error ( isDoesNotExistError )
 
 -- This is the test suite. Use "*y and "*p to copy between files.
+
+removeDirIfExists :: FilePath -> IO ()
+removeDirIfExists foldername = removeDirectoryRecursive foldername `catch` handleExists
+  where handleExists e
+         | isDoesNotExistError e = return ()
+         | otherwise = throwIO e
 
 -- | This function takes a string and char and returns everything up to (but not including) that char
 cutUntoChar :: [Char] -> Char -> [Char]
@@ -160,17 +171,16 @@ prop_goodWheelGraphNumCy n = testNumCy graph result
     result = wheelGraphNumCy nGood
     nGood  = if (abs n) > 0 then (abs n) else 1
 
-
-testMaxCy :: [[Int]] -> Int -> Property
-testMaxCy graph splitbits = do
+testMaxCy' :: [[Int]] -> Int -> IO Bool
+testMaxCy' graph splitbits = do
   graphToMaxcyCode graph splitbits foldername
   compileAllInDir foldername
   runAllInDir foldername
-  files <- getDirectoryContents foldername
+  files <- getDirectoryContents foldername :: IO [FilePath]
   let txtFile = \file ->((last file) == 't') && ((last $ init file) == 'x') && ((last $ init $ init file) == 't') && ((last $ init $ init $ init file) == '.')
-  text_files <- return $ filter txtFile files
-  checked <- mapM checkMaxCySolution text_files
-  checkedTups <- return $ zip checked (map return [0..])
+  text_files <- return $ filter txtFile files :: IO [FilePath]
+  checked <- mapM checkMaxCySolution text_files :: IO [Bool]
+  checkedTups <- return $ zip (map return checked) (map return [0..])
   invalidTups <- filterM trueFst checkedTups
   invalid <- mapM snd invalidTups :: IO [Int]
   putStrLn "[Begin failures]"
@@ -178,7 +188,7 @@ testMaxCy graph splitbits = do
   putStrLn "[End failures]"
   allGood <- return $ invalid == []
   when allGood (removeDirIfExists foldername)
-  allGood
+  return allGood
   where
     trueFst x0 = do
       first <- fst x0
@@ -186,25 +196,29 @@ testMaxCy graph splitbits = do
       return notted
     foldername = "testMaxCy"
 
+testMaxCy :: [[Int]] -> Int -> Property
+testMaxCy graph splitbits = monadicIO $ run $ testMaxCy' graph splitbits
+
+
 prop_goodCompleteGraphFindCy :: Int -> Int -> Property
 prop_goodCompleteGraphFindCy n splitbits = testMaxCy graph splitbitsGood
   where
     graph         = completeGraph nGood
-    splitbitsGood = if ((abs splitbits) >= 0) && ((abs splitbits) < ((n*(n-1)/2) - 3)) then (abs splitbits) else 0
+    splitbitsGood = if ((abs splitbits) >= 0) && ((abs splitbits) < ((div (n*(n-1)) 2) - 3)) then (abs splitbits) else 0
     nGood         = if (abs n) > 2 then (abs n) else 3
 
 prop_goodShuttleGraphFindCy :: Int -> Int -> Property
 prop_goodShuttleGraphFindCy n splitbits = testMaxCy graph splitbitsGood
   where
     graph         = shuttleGraph nGood
-    splitbitsGood = if ((abs splitbits) >= 0) && ((abs splitbits) < (3*n - 5) then (abs splitbits) else 0
+    splitbitsGood = if ((abs splitbits) >= 0) && ((abs splitbits) < (3*n - 5)) then (abs splitbits) else 0
     nGood         = if (abs n) > 3 then (abs n) else 4
 
 prop_goodWheelGraphFindCy :: Int -> Int -> Property
 prop_goodWheelGraphFindCy n splitbits = testMaxCy graph splitbitsGood
   where
     graph         = wheelGraph nGood
-    splitbitsGood = if ((abs splitbits) >= 0) && ((abs splitbits) < ((n*(n-1)/2) - 3)) then (abs splitbits) else 0
+    splitbitsGood = if ((abs splitbits) >= 0) && ((abs splitbits) < ((div (n*(n-1)) 2) - 3)) then (abs splitbits) else 0
     nGood         = if (abs n) > 0 then (abs n) else error "hi" --1
 
 main :: IO ()

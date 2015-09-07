@@ -7,6 +7,13 @@
   (major1) == 1 && (major2) <  3 || \
   (major1) == 1 && (major2) == 3 && (minor) <= 0)
 
+/* package QuickCheck-2.6 */
+#define VERSION_QuickCheck "2.6"
+#define MIN_VERSION_QuickCheck(major1,major2,minor) (\
+  (major1) <  2 || \
+  (major1) == 2 && (major2) <  6 || \
+  (major1) == 2 && (major2) == 6 && (minor) <= 0)
+
 /* package base-4.7.0.1 */
 #define VERSION_base "4.7.0.1"
 #define MIN_VERSION_base(major1,major2,minor) (\
