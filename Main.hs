@@ -1,7 +1,11 @@
 module Main where
 
 --module Testing where
-import Cycles.Forcy
+--import Cycles.Forcy
+import Cycles.Maxcy
+import Cycles.Findcy
+import Cycles.IO
+import Cycles.Aux
 import Control.Exception (catch, SomeException, throwIO)
 import Control.Monad
 import Data.List (sort, group)
@@ -20,11 +24,11 @@ import System.IO.Error ( isDoesNotExistError )
 maxNumCyForTest = completeGraphNumCy 6
 maxNumEdgesForTest = 100
 
-removeDirIfExists :: FilePath -> IO ()
-removeDirIfExists foldername = removeDirectoryRecursive foldername `catch` handleExists
-  where handleExists e
-         | isDoesNotExistError e = return ()
-         | otherwise = throwIO e
+-- removeDirIfExists :: FilePath -> IO ()
+-- removeDirIfExists foldername = removeDirectoryRecursive foldername `catch` handleExists
+--   where handleExists e
+--          | isDoesNotExistError e = return ()
+--          | otherwise = throwIO e
 
 sort2 lists = sort $ map sort lists
 
