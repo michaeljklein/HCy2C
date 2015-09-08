@@ -83,30 +83,8 @@ import Prelude
 import System.Directory ( getDirectoryContents )
 import System.IO.Error ( isDoesNotExistError )
 
-
--- import Control.Exception
--- import Control.Monad
--- import Data.Bits
--- import Data.List
--- import Data.List.Split
--- import Data.Maybe
--- import Data.String.Utils
--- import Foreign.C.Types
--- import System.Directory
--- import System.IO
--- import System.Process
--- import Text.Regex
--- --import Control.Exception.Assert
-
--- --For Debugging
--- import Data.Typeable
--- import System.IO.Unsafe
-
--- --For cleaning up files
--- --http://stackoverflow.com/questions/8502201/remove-file-if-it-exists
--- import Prelude hiding (catch)
--- import System.Directory
--- import System.IO.Error hiding (catch)
+-- For cleaning up files 
+-- http://stackoverflow.com/questions/8502201/remove-file-if-it-exists
 
 removeIfExists :: FilePath -> IO ()
 removeIfExists fileName = removeFile fileName `catch` handleExists
@@ -120,86 +98,14 @@ removeDirIfExists foldername = removeDirectoryRecursive foldername `catch` handl
          | isDoesNotExistError e = return ()
          | otherwise = throwIO e
 
----------------------------------------------------------------------------------------------------------------------------------------
--------------------------------------------------------------------------------------------------------------------------------------
---      TODO:
---
---      Warning: no synopsis given. You should edit the .cabal file and add one.
---      You may want to edit the .cabal file and add a Description field.
---
---      profile!:
---              consider whether to optimize r() further
---                  use "A ^ B" instead of "A /= B"
---              use papi get_real_cycles() to interpolate the number of cpu-cycles for a e-edge, c-cycle graph
---                  use "#include <x86intrin.h>" and "unsigned long long c0 = __rdtsc();" unstead of papi.
---              write-up number of steps (something like ceiling(forms/64)*2^numedges) and find constant of ~how many cycles per asympt. step
---
---      (long)
---              add support for QuickCheck (In progress)
---              write an unfolder to unfold n loops of findcy's tree search
---              write an interface to opencl to run in one thread at a time or auto-split work among threads (manager and push 'medium' tasks to others)
---              write a more formal interface to the whole thing, incl. a general graph -> minimal nontrivial parts -> complete solution
---                compile all in folder (Done)
---                run all in folder (Done)
---                check maxcy solution (Done)
---                check all in folder
---                reduce solutions
---                convert solution to digraph (Done)
---                still need solution files to graph (Done)
---
---      (mild)
---              fix other functions to not use a state variable
---              make variables for repetitive operations (e.g. length - 1, show something, etc.)
---              add option to only print new bests?
---
---      (fun)
---              consider porting to accelerate (with TemplateHaskell?) (partial version in '4gpu' folder)
---
---      (comments)
---              *
---FIXED/DONE:
---      converting vertex cycles to edge cycles misses edges (probably from the a/prepending
---      converting a [1,0] list to a ULL doesn't pad properly. It outputs [1,1..stuff] instead of [stuff,1,1..1]
---      specifically important for this fix is the aalist essentailly treating all start values as 0. not good.
---      the bits seem to be inverted in the various bitlists
---      make sure that sorting the indexed cycles does not affect the results
---      fixed problem (quite persistent) caused by not initializing A[0] as anything other than all ones (bitwise)
---      fix length' to not use a state/sofar variable
---      write a function that outputs one of http://www.dalkescientific.com/writings/diary/archive/2011/11/02/faster_popcount_update.html according to option
---      write a 'trim output' C function (should be easy to make a general one) and add both that and the rem0s function to the end of the program:
---          -> going to just have Haskell do that instead
---      add count-only option to findcy
---      implement split-bits
---              consider rolling my own 'sprinter' (should be a peice of cake, but maybe not worth it) DONE
---                  use "str[i] = X[i] ^ 48" (48 is '0', 49 is '1') DONE
---                  get rid of "if (this < best)" case DONE
---      profile and lightly optimize the haskell code -> current state: ghc breaks the printing of 2nd/2 code files and ghci works
---      remove 'ONES' if not needed
---      "The -ddump-minimal-imports option to ghc writes the cleaned-up list to M.imports, where M is the module being compiled."
---      ADD OPTION FOR FINDCY OF DIGRAPH
---
----------------------------------------------------------------------------------------------------------------------------------------
--------------------------------------------------------------------------------------------------------------------------------------
-
---Assuming variables are unlimited width for the purposes of explaining the logic: (1 is true, 0 is false) (i is the variable index, j is the digit index)
---	a[i][j] := is the ith edge in the jth cycle?
---	b[i][j] := is the ith edge backward in the jth cycle? (forward is [x,y] -> x<y )
---	c[i][j] := ~a[i][j] | ~b[i][j]
---	d[i][j] := ~a[i][j] |  b[i][j]
---	A[i][j] := (up to and inc. the ith var/edge) is it still possible that this digraph has the jth cycle?
---	A[0][j] := 1 if j < number of cycles
---	y[i][j] := is ith edge backward? (so 0 is forward, 1 is backward)
---	A[i][j] := A[i-1][j] & (~y[j] | c[i][j]) & (y[j] | d[i][j]
-
-----First convert vertex cycles to (forward? Bool , edge index) tuple list
+---- For generating the MaxCy code:
+---- First convert vertex cycles to (forward? Bool , edge index) tuple list
 
 goodGraphList :: Integral a => [[a]] -> Bool
 goodGraphList list = ((length (filter (\x -> x!!0 >= x!!1) list)) == 0) && ((minimum $ map minimum list) == 0)
---assert (goodGraphList [[0,2],[3,4],[5,6],[7,8],[10,100]]) ()
 
 trimList :: Integral a => [a] -> [a]
 trimList list = if (last list) == 0 then trimList (init list) else list
---byEq assert "Integral a => [a]" (trimList [1,2,3,0,0,1,0,0,0,0,0,0]) [1,2,4,0,0,1] ()
 
 -- | 'wrapAround' appends the first element to the list
 wrapAround :: [a] -> [a]
@@ -211,7 +117,7 @@ elemIndex' :: (Eq a, Integral b) => a -> [a] -> b -> b
 elemIndex' _ [] _ = error "you tried to get the index of an element from an empty list"
 elemIndex' x (y:ys) p = if x == y then p else elemIndex' x ys (p + 1)
 
---elist is edge list and vlist is cycle vertex list
+-- | 'elist' is edge list and vlist is cycle vertex list
 convIndivCycle :: (Integral a, Bits a) => [[a]] -> [a] -> [(Bool, a)]
 convIndivCycle elist vlist = loop elist tvlist []
                         where
@@ -221,16 +127,14 @@ convIndivCycle elist vlist = loop elist tvlist []
                                                                                     then output
                                                                                     else (vlist'!!0 < vlist'!!1, elemIndex' (sort (take 2 vlist')) elist' 0):output )
                             tvlist = wrapAround $ trimList vlist
---byEq assert "Integral a => [(Bool, a)]" (convIndivCycle [[0,1],[1,2],[0,2]] [0,1,2,0,0,0,0]) [(True,0),(True,1),(False,2)] ()
 
 
-----Now, make variable lists
+---- Now, make variable lists
 
 bool :: Integral a => Bool -> a
 bool x = if x then 1 else 0
---assert ((bool True) == 1) ()
 
---aVarList is a[var][j], likewise for bVarList
+-- | aVarList is a[var][j], likewise for bVarList
 aVarList :: (Integral a, Bits a, Integral b, Bits b) => [[(Bool, a)]] -> a -> [b]
 aVarList cyclelists var = map (\x ->bool $ elem var x) (map (\y -> map (\x -> snd x) y) cyclelists)
 
@@ -242,14 +146,14 @@ bVarList cyclelists var = map gettf (map (\y -> (filter (\x -> (snd x) == var) y
                                         then 0
                                         else bool $ fst $ head $ list
 
---Note: (1-x) == ~x for x <- [0,1]
+-- | Note: (1-x) == ~x for x <- [0,1]
 cVarList :: (Integral a, Bits a) => [a] -> [a] -> [a]
 cVarList avlist bvlist = zipWith (\a b -> (1-a) .|. (1-b) ) avlist bvlist
 
 dVarList :: (Integral a, Bits a) => [a] -> [a] -> [a]
 dVarList avlist bvlist = zipWith (\a b -> (1-a) .|.    b  ) avlist bvlist
 
-----The next step is to make binary value builders
+---- The next step is to make binary value builders
 
 -- | 'length'' outputs a general Integral type
 --length' :: Integral b => [a] -> b -> b
@@ -277,8 +181,8 @@ listToULL list = if (length list) > 64
 listToULLs :: Integral a => [a] -> [CULLong]
 listToULLs list = map listToULL (chunksOf 64 (padMod list 0 64))
 
-----Now all we need to do before building is make the variable text generators
---I will be using a custom formatter: each line that needs more info filled in will be marked ":[name of thing to insert]"
+---- Now all we need to do before building is make the variable text generators
+---- I will be using a custom formatter: each line that needs more info filled in will be marked ":[name of thing to insert]"
 
 -- | 'elemIndex''' is the same as 'elemIndex'', except it allows Maybe
 elemIndex'' :: (Eq a, Integral b) => a -> [a] -> b -> Maybe b
@@ -378,10 +282,18 @@ trimCycleList cyclelist = switchInTupLists refrontloaded 0 (aMostOftenElem refro
     trimmed = map (\cy ->if elem (True, 0) cy then tail cy else cy) frontloaded -- if a cycle has (forward,0) then remove it
     refrontloaded = frontLoadTupLists cyclelist
 
---generateCode :: (Integral a, Bits a, Show a) => [[a]] -> [[a]] -> a -> a -> a -> a -> String
+-- This function creates a function which may be mapped to a start value (to reduce overhead in splitting up the files) to produce C code. These C code files may be compiled to produce independent programs, able to be run in parallel or even on seperate machines with different architectures. 
+--  Assuming variables are unlimited width for the purposes of explaining the logic: (1 is true, 0 is false) (i is the variable index, j is the digit index)
+--	a[i][j] := is the ith edge in the jth cycle?
+--	b[i][j] := is the ith edge backward in the jth cycle? (forward is [x,y] -> x<y )
+--	c[i][j] := ~a[i][j] | ~b[i][j]
+--	d[i][j] := ~a[i][j] |  b[i][j]
+--	A[i][j] := (up to and inc. the ith var/edge) is it still possible that this digraph has the jth cycle?
+--	A[0][j] := 1 if j < number of cycles
+--	y[i][j] := is ith edge backward? (so 0 is forward, 1 is backward)
+--	A[i][j] := A[i-1][j] & (~y[j] | c[i][j]) & (y[j] | d[i][j]
 generateMaxCyCodeAtStart :: [[Int]] -> [[Int]] -> Int -> Int -> (Int -> String, String)
 generateMaxCyCodeAtStart graph cycles end splitbits = (\start ->(unlines introlist) ++ ((starthere start) ++ (fout start)) ++ (unlines $ map (\s -> formatByDict s dict) codelist), printout)
-
     where
         twotothesplitbits = 2^splitbits
         printout = unlines ["graph:" ++ (show graph),
@@ -406,7 +318,6 @@ generateMaxCyCodeAtStart graph cycles end splitbits = (\start ->(unlines introli
         dlist   = map listToULLs (map (\var -> dVarList (fst var) (snd var)) (zip alist blist))
         aalist' = map listToULLs (map (\var -> map (\_ -> 1) var)                 alist       )
         aalist  = listFirstAnd aalist' aalist' dlist
---        aalist = map listToULLs (replicate (length alist) (replicate (length $ head alist) 1))
 
         dict = [
          (":maxpos",     maxpos),
@@ -618,12 +529,11 @@ generateMaxCyCodeAtStart graph cycles end splitbits = (\start ->(unlines introli
             "    end:",
             "        return 0;",
             "}",
-            --"int main(int argc, const char * argv[]) {",
             "int main(){",
-            --    fout = fopen("test_0_0_out.txt", "w");
+            -- fout = fopen("test_0_0_out.txt", "w");
             "fout = fopener;",
             --":fout",
-            --    fputs("[[0, 1], [1, 2], [0, 2]]\n", fout);
+            -- fputs("[[0, 1], [1, 2], [0, 2]]\n", fout);
             ":fputs",
             "    if(endhere){",
             "        uint_fast8_t bitpos = 0;",
@@ -647,67 +557,24 @@ generateMaxCyCodeAtStart graph cycles end splitbits = (\start ->(unlines introli
             "}",
             ""]
 
-{-
-testgraph :: [[Int]]
-testgraph = [[0,1],[1,2],[0,2]]
+-- main :: IO ()
+-- main = if goodGraphList k4g
+--         then do
+--             putStrLn (fst (generateMaxCyCode k4g k4c 0 1 0))
+--             putStrLn (snd (generateMaxCyCode k4g k4c 0 1 0))
+--         else putStrLn "not a good graph"
 
-testcycles :: [[Int]]
-testcycles = [[0,1,2,0,0],[1,0,2,0,0,0]]
--}
 
-k4g :: [[Int]]
-k4g = [[0,1],[0,2],[0,3],[1,2],[1,3],[2,3]]
-
-k4c :: [[Int]]
-k4c = [[0,1,2,0],[0,1,2,3],[0,1,3,0],[0,1,3,2],[0,2,1,0],[0,2,1,3],[0,2,3,0],[0,2,3,1],[0,3,1,0],[0,3,1,2],[0,3,2,0],[0,3,2,1],[1,2,3,0],[1,3,2,0]]
-
-main :: IO ()
-main = if goodGraphList k4g
-        then do
-            putStrLn (fst (generateMaxCyCode k4g k4c 0 1 0))
-            putStrLn (snd (generateMaxCyCode k4g k4c 0 1 0))
-        else putStrLn "not a good graph"
-
--- generateMaxCyCode graph cycles start end splitbits
-
-------------------------------------------------------------------------------------------------------------------------------------------------------------
-------------------------------------------------------------------------------------------------------------------------------------------------------------
---Following is the generator for a one-time use C program to find all cycles in a graph.
---
---      The general program will work with directed and undirected graphs and will find all *directed* cycles in the graph
---      I plan to modify the original program to work with graphs and digraphs and each modification to optinally only count cycles instead of listing them
---      This cannot be solved in O(V+E) time because even planar graphs can have O(2^v) cycles and listing/counting a graph cycle takes at least 1 CPU cycle
---
---      The algorithm performs a depth first search from an arbitrary vertex, marking seen vertices on the way, and only outputting cycles through
---              \ the initial vertex. As all cycles through that vertex have been found by the end, it is removed and the process repeated.
---              \ This way, there is no need to check if a cycle has been found yet and there are no sources of repetition.
---
---      The only weaknesses of this algorithm that I know are:
---              1) It requires full out-adjacency lists for each vertex (best fit for directed, sparse graphs)
---              2) For undirected graphs, if the cycles are considered to be undirected, it outputs one "forward" and one "backward" copy of each cycle
---                      N.B. For the purposes of inputting the cycles into the Max-Cycles part of the code, this is a strength as the algorithm needs both
---              3) Although the output file is formatted, it is annoying to integrate generating, compiling, running, and parsing into a single function
---              4) The generated code is in C. Yeah, I said it. On the plus side, unless you're running this on very big graphs
---                      \ (where it would take an obscene amount of time to finish), you shouldn't run into overflow issues.
---
---      The biggest plus? This algorithm is stupid-fast. Last test I ran outputted ~1.5GB of cycles from ~2k strongly-connected graphs, |E|<=36  in under 30s.
---              I can't wait to see how far I can push the count-only version heheheh..
---
-------------------------------------------------------------------------------------------------------------------------------------------------------------
-------------------------------------------------------------------------------------------------------------------------------------------------------------
-
--- graph (edgelist), cfilename, are assumed variables
-
--- 's' is the string, 'l' is how long to make the final one
+-- | 's' is the string, 'l' is how long to make the final one
 padStrLeft0s :: (Integral a) => String -> a -> String
 padStrLeft0s s t = if (length' s) >= t then s else padStrLeft0s ('0':s) t
 
--- Number of decimal digits in n
+-- | Number of decimal digits in n
 digLen10 :: (Num a, Integral a, Eq a) => a -> a
 digLen10 0 = 0
 digLen10 n = 1 + digLen10 (div n 10)
 
--- Get first element of l that's not equal to a (assuming no repetitons)
+-- | Get first element of l that's not equal to a (assuming no repetitons)
 otherElem :: Eq a => a -> [a] -> a
 otherElem a l = if (head l) == a then head $ tail l else head l
 
@@ -739,7 +606,6 @@ edgeAdjacent e1 e2 directed = if directed
     b = e1 !! 1
     c = e2 !! 0
     d = e2 !! 1
---if directed then (elem (e1 !! 0) e2) && (not (e1 == e2)) else ((elem (e1 !! 0) e2) || (elem (e1 !! 1) e2)) && (not (e1 == e2))
 
 eadjpos :: [Int] -> [[Int]] -> Bool -> [Int]
 eadjpos e1 graph directed = map fst $ filter (\e2 -> edgeAdjacent e1 (snd e2) directed) (enum graph)
@@ -766,6 +632,27 @@ vertexAdjacencyLists graph directed = map (\vi -> vadjpos vi graph directed) [0.
   where
     max_vertex = max2 graph
 
+-- | Following is the generator for a one-time use C program to find all cycles in a graph.
+--
+--      The general program will work with directed and undirected graphs and will find all *directed* cycles in the graph
+--      I plan to modify the original program to work with graphs and digraphs and each modification to optinally only count cycles instead of listing them
+--      This cannot be solved in O(V+E) time because even planar graphs can have O(2^v) cycles and listing/counting a graph cycle takes at least 1 CPU cycle
+--
+--      The algorithm performs a depth first search from an arbitrary vertex, marking seen vertices on the way, and only outputting cycles through
+--              \ the initial vertex. As all cycles through that vertex have been found by the end, it is removed and the process repeated.
+--              \ This way, there is no need to check if a cycle has been found yet and there are no sources of repetition.
+--
+--      The only weaknesses of this algorithm that I know are:
+--              1) It requires full out-adjacency lists for each vertex (best fit for directed, sparse graphs)
+--              2) For undirected graphs, if the cycles are considered to be undirected, it outputs one "forward" and one "backward" copy of each cycle
+--                      N.B. For the purposes of inputting the cycles into the Max-Cycles part of the code, this is a strength as the algorithm needs both
+--              3) Although the output file is formatted, it is annoying to integrate generating, compiling, running, and parsing into a single function
+--              4) The generated code is in C. Yeah, I said it. On the plus side, unless you're running this on very big graphs
+--                      \ (where it would take an obscene amount of time to finish), you shouldn't run into overflow issues.
+--
+--      The biggest plus? This algorithm is stupid-fast. Last test I ran outputted ~1.5GB of cycles from ~2k strongly-connected graphs, |E|<=36  in under 30s.
+--
+-- graph (edgelist), cfilename, are assumed variables
 generateFindCyCode :: [[Int]] -> [Char] -> Bool -> Bool -> [Char]
 generateFindCyCode graph cfilename justCount directed = unlines $ map (\s -> formatByDict s dict) codelist
     where
@@ -812,7 +699,6 @@ generateFindCyCode graph cfilename justCount directed = unlines $ map (\s -> for
             str[5] = lookup[this_current_path[2]][0];
             str[7] = lookup[this_current_path[3]][0];
         -}
-        -- POSSIBLE ERRORS IN FOLLOWING LINE:
         init_strs_list = unlines $ map (\pathpos -> unlines $ map (\digpos -> "    str[" ++ show (pathpos * (maxd+1) + digpos + 1) ++ "] = lookup[this_current_path[" ++ (show pathpos) ++ "]][" ++ (show digpos) ++ "];") [0..(maxd-1)]) [0..gmax]
         -- numparts = \j -> "    str[" ++ (show (j * (maxd + 1) + i
         -- pathparts = \i -> unlines $ map numparts [0..(maxd-1)]
@@ -837,9 +723,7 @@ generateFindCyCode graph cfilename justCount directed = unlines $ map (\s -> for
                           const unsigned int * vos[4] = {vo0,vo1,vo2,vo3};
         -}
         --adj_lists = if directed then dadj_lists else uadj_lists
-        -- uadj_lists is the list of undirected adjacency lists
         --uadj_lists = map (\v ->sort $ map (otherElem v) (filter (\e -> elem v e) graph)) [0..(glen - 1)]
-        -- dadj_lists is directed version of uadj_lists
         --dadj_lists= map (\v ->sort $ map (otherElem v) (filter (\e -> (last e) == v) graph)) [0..(glen -1)]
         adj_lists = vertexAdjacencyLists graph directed --edgeAdjacencyLists graph directed
 
@@ -1036,6 +920,7 @@ generateFindCyCode graph cfilename justCount directed = unlines $ map (\s -> for
 ifElseError :: Bool -> t -> t
 ifElseError bool thn = if bool then thn else error "Output file unfinished or unmatched to graph."
 
+-- | This function takes a graph and whether it is a digraph and returns the number of directed cycles in it
 graphToNumCycles :: [[Int]] -> Bool -> IO Int
 graphToNumCycles graphlist directed = do
   removeIfExists "countcy_temp.c"
@@ -1062,6 +947,7 @@ processCycles cycles_string graph = ifElseError good ((\s ->(map read_cy $ trim 
     eq_graph graph s = (show graph) == s
     read_cy cy       = trimList $ read cy
 
+-- | This function takes a graph and whether it is a digraph and returns a list of all directed cycles (somewhat slow, because it uses Haskell's read function).
 graphToCycles :: [[Int]] -> Bool -> IO [[Int]]
 graphToCycles graphlist directed = do
   removeIfExists "findcy_temp.c"
@@ -1083,13 +969,12 @@ graphToCycles graphlist directed = do
       handler :: SomeException -> IO String
       handler _ = error "The results have disappeared under my nose."
 
---graphToMaxcyCode :: [[Int]] -> Int -> [Char] -> [Char] -- IO ()
+-- | This function takes a graph and automatically finds all cycles to output a string containing the C code to compute its maximally cyclic orientations
 graphToMaxcyCode graphlist splitbits name = do
   -- putStrLn "1"
   cycles <- graphToCycles graphlist False
   -- putStrLn "2"
   let endhere = splitbits
--- ???????????????????????
   -- putStrLn "3"
   let startmap = \start -> (show start, (fst $ generateMaxCyCodeAtStart graphlist cycles endhere splitbits) start)
   --let startmap = \start ->liftM (\cy -> (show start, fst $ generateMaxCyCode graphlist cy start endhere splitbits)) cycles
@@ -1121,8 +1006,8 @@ graphToMaxcyCode graphlist splitbits name = do
         -- putStrLn "9"
         hClose outfile
         return start
--- generateMaxCyCode graph cycles start end splitbits
 
+-- | This function does exactly what it says, for '.c' files.
 compileAllInDir :: [Char] -> IO ()
 compileAllInDir dir = do
   files <- getDirectoryContents dir
@@ -1143,11 +1028,11 @@ runAllInDir dir = do
           | (last name) == '.' = False
           | otherwise         = execFile $ init name
 
--- k4g :: [[Int]]
--- k4g = [[0,1],[0,2],[0,3],[1,2],[1,3],[2,3]]
-
--- k4c :: [[Int]]
--- k4c = [[0,1,2,0],[0,1,2,3],[0,1,3,0],[0,1,3,2],[0,2,1,0],[0,2,1,3],[0,2,3,0],[0,2,3,1],[0,3,1,0],[0,3,1,2],[0,3,2,0],[0,3,2,1],[1,2,3,0],[1,3,2,0]]
+------------------------------------------------------------------------------------------------------------------------------------------------------------
+------------------------------------------------------------------------------------------------------------------------------------------------------------
+--The following is for debugging purposes.
+------------------------------------------------------------------------------------------------------------------------------------------------------------
+------------------------------------------------------------------------------------------------------------------------------------------------------------
 
 -- main :: IO ()
 -- main = do
@@ -1159,12 +1044,6 @@ runAllInDir dir = do
 --   putStrLn $ unsafePerformIO str
 --   putStrLn "\nDone."
 
-------------------------------------------------------------------------------------------------------------------------------------------------------------
-------------------------------------------------------------------------------------------------------------------------------------------------------------
---The following is for debugging purposes.
-------------------------------------------------------------------------------------------------------------------------------------------------------------
-------------------------------------------------------------------------------------------------------------------------------------------------------------
-
 listFromULL :: CULLong -> String
 listFromULL 0 = []
 listFromULL x = (listFromULL $ div x 2) ++ (show (x .&. 1))
@@ -1174,47 +1053,6 @@ printULLs l = unlines $  map (\x -> show $ map listFromULL x) l
 
 sortBySnd :: Ord b => [(a,b)] -> [(a,b)]
 sortBySnd list = sortBy (\a b -> compare (snd a) (snd b)) list
-
-completeGraph :: Integral a => a -> [[a]]
-completeGraph n = [[a,b] | a <- [0..n-1], b <- [0..n-1], a<b]
-
--- lookes like <|=|=|=|>
--- 3->1,4
--- 4->2,3
--- 5->3,6
--- 6->4,5
--- n->n - 2, n - 1 + 2 * (mod n 2)
--- The shuttle graph is good for debugging because of the following property:
---    There are (n+1) cycles that are a cap or middle square (units)
---    There are (n+0) cycles that are an adjacent pair   of units
---    There are (n-1) cycles that are an adjacent triple of units
---    etc.
--- Because of this property, this graph has exactly (2 + 3 n + n^2)/2 cycles (equal to TriangularNumber(n+1)).
-shuttleGraph :: Integral a => a -> [[a]]
-shuttleGraph n = [0,1] : [0,2] : [1,2] : [2*n-1, 2*n+1] : [2*n, 2*n+1] : [[m, m - 2] | m <- [3..2*n]] ++ [[m, m+1] | m <- [3,5..2*n-1]]
-
---  For the wheel graph, starting with n == 4 (by mathematica's definition, isomorphic to K4),
---    the nth graph is (n-1) triangles joined at a common central vertex and each joined to the
---    next in a wheel. The number of cycles may be found as follows:
---      ( 1 ) There are (n-1)     1-triangle cycles
---      ( 2 ) There are (n-1)     2-triangle cycles
---      ( . ) ...
---      (n-2) There are (n-1) (n-2)-triangle cycles
---  With the addition of the single cycle of all the triangles, this gives that there is a total
---    of (n-1)*(n-2) + 1 cycles
---
--- Constructed by making the spokes from '0', adding all but one of the outer cycle, then adding the final edge
-wheelGraph :: Integral a => a -> [[a]]
-wheelGraph n = [[0, i] | i <- [1..(n-1)]] ++ [[j, j+1] | j <- [1..(n-2)]] ++ [[1, n-1]]
-
--- processCycles :: [Char] -> [[Int]] -> [[Int]]
--- processCycles cycles_str graph = if (done /= "DONE.") || (graph /= (show graph))
-                                    -- then error "Output file is either unfinished or unmatched to the current graph."
-                                    -- else map (\l ->trimList $ read l :: [Int]) cycles
-  -- where
-  --   cycles = trim $ lines cycles_str
-    -- graph  = head $ lines cycles_str
-    -- done   = last $ lines cycles_str
 
 makeAsmCounter4 :: Int -> [Char]
 makeAsmCounter4 j = unlines  ["    __asm__(",
@@ -1272,34 +1110,3 @@ makeAsmCounter n = unlines ["int counter (uint64_t * buf){",
                             foldl (++) "" $ "    return cnt[0]" : [" + cnt[" ++ (show k) ++ "]" | k <- [1..(n-1)]] ++ [";"],
                             "}"]
 
--- int counter2 (uint64_t* buf){
---     uint64_t cnt[buflen];
---     for (int i = 0; i < (buflen); i++) {
---         cnt[i] = 0;
---     }
---     __asm__(
---             "popcnt %4, %4  \n\t"
---             "add %4, %0     \n\t"
---             "popcnt %5, %5  \n\t"
---             "add %5, %1     \n\t"
---             "popcnt %6, %6  \n\t"
---             "add %6, %2     \n\t"
---             "popcnt %7, %7  \n\t"
---             "add %7, %3     \n\t" // +r means input/output, r means intput
---             : "+r" (cnt[0]), "+r" (cnt[1]), "+r" (cnt[2]), "+r" (cnt[3])
---             : "r"  (buf[0]), "r"  (buf[1]), "r"  (buf[2]), "r"  (buf[3]));
---     __asm__(
---             "popcnt %2, %2  \n\t"
---             "add %2, %0     \n\t"
---             "popcnt %3, %3  \n\t"
---             "add %3, %1     \n\t"
---             : "+r" (cnt[4]), "+r" (cnt[5])
---             : "r"  (buf[4]), "r"  (buf[5]));
---     __asm__(
---             "popcnt %1, %1  \n\t"
---             "add %1, %0     \n\t"
---             : "+r" (cnt[6])
---             : "r"  (buf[6]));
-
---     return cnt[0] + cnt[1] + cnt[2] + cnt[3] + cnt[4] + cnt[5] + cnt[6];
--- }

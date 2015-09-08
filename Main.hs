@@ -337,10 +337,6 @@ prop_goodWheelGraphMaxCy n splitbits seed = testMaxCy graph splitbitsGood seed
 
 main :: IO ()
 main = hspec $ do
-  -- describe "read" $ do
-  --   context "when used with ints" $ do
-  --     it "is inverse to show" $ property $
-  --       \x -> (read . show) x == (x :: Int)
   describe "listSwap" $ do
     context "when used with a pairs of [Int]'s" $ do
       it "is its own inverse" $ property $
@@ -380,19 +376,4 @@ main = hspec $ do
     context "when used with wheel graphs" $ do
       it "agrees in *all* its solutions with graphToNumCycles" $ property $
         prop_goodWheelGraphMaxCy
-
-
--- MAKE sure cyclelists out of graphToCycles are properly sorted by snd of cycle.
--- Randomly rename/shuffle edge labels and make sure that the results are the same.
--- Use Test.QuickCheck.Monadic
--- Move checkMaxCySolutions to this file.
--- Add function to go graph -> files -> check all
--- Add option for splitbits in above function
-
-
-
-
-
-
-
 

@@ -10,10 +10,10 @@ name:                Hcy2c
 -- PVP summary:      +-+------- breaking API changes
 --                   | | +----- non-breaking API additions
 --                   | | | +--- code changes with no API change
-version:             0.1.0.0
+version:             0.1.1.0
 
 -- A short (one-line) description of the package.
-synopsis:            Generate c code for cycle related tasks
+synopsis:            Generate one-time-use C programs to compute: the (number of) directed cycles in an (un)directed graph, the maximally cyclic orientations of a graph.
 
 -- A longer description of the package.
 -- description:         
@@ -22,7 +22,7 @@ synopsis:            Generate c code for cycle related tasks
 homepage:            klein.mk
 
 -- The license under which the package is released.
-license:             MIT
+-- license:             
 
 -- The file containing the license text.
 license-file:        LICENSE
@@ -43,7 +43,7 @@ build-type:          Simple
 
 -- Extra files to be distributed with the package, such as examples or a 
 -- README.
--- extra-source-files:  
+extra-source-files:  README.md
 
 -- Constraint on the version of Cabal needed to build this package.
 cabal-version:       >=1.10
@@ -54,7 +54,7 @@ executable Hcy2c
   main-is:             Main.hs
   
   -- Modules included in this executable, other than Main.
-  other-modules:       Cycles.Forcy 
+  -- other-modules:       
   
   -- LANGUAGE extensions used by modules in this package.
   -- other-extensions:    

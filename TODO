@@ -1,0 +1,68 @@
+---------------------------------------------------------------------------------------------------------------------------------------
+-------------------------------------------------------------------------------------------------------------------------------------
+--      TODO:
+--
+--      Warning: no synopsis given. You should edit the .cabal file and add one.
+--      You may want to edit the .cabal file and add a Description field.
+--
+--      profile!:
+--              consider whether to optimize r() further
+--                  use "A ^ B" instead of "A /= B"
+--              use papi get_real_cycles() to interpolate the number of cpu-cycles for a e-edge, c-cycle graph
+--                  use "#include <x86intrin.h>" and "unsigned long long c0 = __rdtsc();" unstead of papi.
+--              write-up number of steps (something like ceiling(forms/64)*2^numedges) and find constant of ~how many cycles per asympt. step
+--
+--      (long)
+--              add support for QuickCheck (In progress)
+--              write an unfolder to unfold n loops of findcy's tree search
+--              write an interface to opencl to run in one thread at a time or auto-split work among threads (manager and push 'medium' tasks to others)
+--              write a more formal interface to the whole thing, incl. a general graph -> minimal nontrivial parts -> complete solution
+--                compile all in folder (Done)
+--                run all in folder (Done)
+--                check maxcy solution (Done)
+--                check all in folder
+--                reduce solutions
+--                convert solution to digraph (Done)
+--                still need solution files to graph (Done)
+--
+--      (mild)
+--              fix other functions to not use a state variable
+--              make variables for repetitive operations (e.g. length - 1, show something, etc.)
+--              add option to only print new bests?
+--
+--      (fun)
+--              consider porting to accelerate (with TemplateHaskell?) (partial version in '4gpu' folder)
+--
+--      (comments)
+--              *
+--FIXED/DONE:
+--      converting vertex cycles to edge cycles misses edges (probably from the a/prepending
+--      converting a [1,0] list to a ULL doesn't pad properly. It outputs [1,1..stuff] instead of [stuff,1,1..1]
+--      specifically important for this fix is the aalist essentailly treating all start values as 0. not good.
+--      the bits seem to be inverted in the various bitlists
+--      make sure that sorting the indexed cycles does not affect the results
+--      fixed problem (quite persistent) caused by not initializing A[0] as anything other than all ones (bitwise)
+--      fix length' to not use a state/sofar variable
+--      write a function that outputs one of http://www.dalkescientific.com/writings/diary/archive/2011/11/02/faster_popcount_update.html according to option
+--      write a 'trim output' C function (should be easy to make a general one) and add both that and the rem0s function to the end of the program:
+--          -> going to just have Haskell do that instead
+--      add count-only option to findcy
+--      implement split-bits
+--              consider rolling my own 'sprinter' (should be a peice of cake, but maybe not worth it) DONE
+--                  use "str[i] = X[i] ^ 48" (48 is '0', 49 is '1') DONE
+--                  get rid of "if (this < best)" case DONE
+--      profile and lightly optimize the haskell code -> current state: ghc breaks the printing of 2nd/2 code files and ghci works
+--      remove 'ONES' if not needed
+--      "The -ddump-minimal-imports option to ghc writes the cleaned-up list to M.imports, where M is the module being compiled."
+--      ADD OPTION FOR FINDCY OF DIGRAPH
+--
+---------------------------------------------------------------------------------------------------------------------------------------
+-------------------------------------------------------------------------------------------------------------------------------------
+
+
+-- MAKE sure cyclelists out of graphToCycles are properly sorted by snd of cycle.
+-- Randomly rename/shuffle edge labels and make sure that the results are the same.
+-- Use Test.QuickCheck.Monadic
+-- Move checkMaxCySolutions to this file.
+-- Add function to go graph -> files -> check all
+-- Add option for splitbits in above function
