@@ -20,6 +20,10 @@ import System.IO.Error ( isDoesNotExistError )
 
 -- This is the test suite. Use "*y and "*p to copy between files.
 
+
+-- Add a "print current options" feature for prop_goodShuttleGraphNumCyShuffled ->> run it alone until you get a memory blowup and then debug.
+
+
 -- | Because the number of cycles and edges tried by quickcheck can blow up quickly, these are the ranges allowable for (reasonably) fast tests
 -- Tested on Macbook Pro 15", Late 2011, 8 GB RAM, 2.5 GHZ Intel Core i7, 64-bit
 maxNumCyForTest = completeGraphNumCy 6
@@ -86,19 +90,19 @@ checkMaxCySolution file = do
   handle <- openFile file ReadMode
   solutionFile <- catch (readFile file) handler
   --goodFile <- return (finished $ lines solutionFile) -- && (good_graph solutionFile)
-  graph <- return $ read $ head $ lines solutionFile :: IO [[Int]]
-  solutionsStr <- return $ trim $ lines solutionFile
+  let graph = read $ head $ lines solutionFile
+  let solutionsStr = trim $ lines solutionFile
   print graph
   -- here, need to write function converting a single solution into (binary list, number)->(digraph, number)->(number from graphToNumCycles, number)->(fst %) == (snd %)
   -- Solutions are of the form "[01010101001,6784765]"
   whichValid <- mapM (\str -> return $ strSolutionPipe str graph) solutionsStr :: IO [IO Bool]
-  whichValidTups <- return $ zip whichValid (map return [0..])
+  let whichValidTups = zip whichValid (map return [0..])
   invalidTups <- filterM trueFst whichValidTups
   invalid <- mapM snd invalidTups :: IO [Int]
 --  putStrLn "[Begin failures]"
 --  (putStrLn . show) invalid
 --  putStrLn "[End failures]"
-  allGood <- return $ null invalid
+  let allGood = null invalid
   return $ allGood && finished (lines solutionFile)
   where
     trueFst x0 = do
@@ -243,27 +247,28 @@ prop_goodCycleGraphNumCyShuffled n = testNumCyShuffled graph 2
     graph = cycleGraph nGood
     nGood = resizeN n 0
 
+-- | This function returns a complete graph with resized input
+goodCompleteGraph :: Int -> [[Int]]
+goodCompleteGraph n = completeGraph $ resizeN n 1
+
 -- | This property performs as 'prop_goodCycleGraphNumCy', except for complete graphs
 prop_goodCompleteGraphNumCy :: Int -> Property
-prop_goodCompleteGraphNumCy n = testNumCy graph result
+prop_goodCompleteGraphNumCy n = testNumCy (goodCompleteGraph n) result
   where
-    graph  = completeGraph nGood
     result = completeGraphNumCy nGood
     nGood  = resizeN n 1
 
 -- | This property performs as 'prop_goodCycleGraphNumCyShuffled', except for complete graphs
 prop_goodCompleteGraphNumCyShuffled :: Int -> [Int] -> Property
-prop_goodCompleteGraphNumCyShuffled n = testNumCyShuffled graph result
+prop_goodCompleteGraphNumCyShuffled n = testNumCyShuffled (goodCompleteGraph n) result
   where
-    graph  = completeGraph nGood
     result = completeGraphNumCy nGood
     nGood  = resizeN n 1
 
 -- | This property performs as 'prop_goodCycleGraphNumCy', except for shuttle graphs
 prop_goodShuttleGraphNumCy :: Int -> Property
-prop_goodShuttleGraphNumCy n = testNumCy graph result
+prop_goodShuttleGraphNumCy n = testNumCy (shuttleGraph nGood) result
   where
-    graph  = shuttleGraph nGood
     result = shuttleGraphNumCy nGood
     nGood  = resizeN n 2
 
@@ -277,9 +282,8 @@ prop_goodShuttleGraphNumCyShuffled n = testNumCyShuffled graph result
 
 -- | This property performs as 'prop_goodCycleGraphNumCy', except for wheel graphs
 prop_goodWheelGraphNumCy :: Int -> Property
-prop_goodWheelGraphNumCy n = testNumCy graph result
+prop_goodWheelGraphNumCy n = testNumCy (wheelGraph nGood) result
   where
-    graph  = wheelGraph nGood
     result = wheelGraphNumCy nGood
     nGood  = resizeN n 3
 
@@ -307,15 +311,15 @@ testMaxCy' graph splitbits seed = do
   files <- getDirectoryContents foldername :: IO [FilePath]
   let txtFile file = (last file == 't') && (last (init file) == 'x') && (last (init $ init file) == 't') && (last (init $ init $ init file) == '.')
   text_files_untrimmed <- return $ filter txtFile files :: IO [FilePath]
-  text_files <- return $ trimByLenMod text_files_untrimmed seed
+  let text_files = trimByLenMod text_files_untrimmed seed
   checked <- mapM checkMaxCySolution text_files :: IO [Bool]
-  checkedTups <- return $ zip (map return checked) (map return [0..])
+  let checkedTups = zip (map return checked) (map return [0..])
   invalidTups <- filterM trueFst checkedTups
   invalid <- mapM snd invalidTups :: IO [Int]
 --  putStrLn "[Begin failures]"
 --  (putStrLn . show) invalid
 --  putStrLn "[End failures]"
-  allGood <- return $ null invalid
+  let allGood = null invalid
   when allGood (removeDirIfExists foldername)
   return allGood
   where
@@ -368,18 +372,18 @@ main' = hspec $ do
     context "when used with a simple cycle" $ do
       it "has 2 cycles" $ property $
         prop_goodCycleGraphNumCy
-    context "when used with a simple cycle (shuffled)" $ do
-      it "has 2 cycles" $ property $
-        prop_goodCycleGraphNumCyShuffled
-    context "when used with complete graphs" $ do
-      it "has Sum[Product[(i - k + n)/k, {i, 1, k}], {k, 3, n}] cycles" $ property $
-        prop_goodCompleteGraphNumCy
-    context "when used with complete graphs (shuffled)" $ do
-      it "has Sum[Product[(i - k + n)/k, {i, 1, k}], {k, 3, n}] cycles" $ property $
-        prop_goodCompleteGraphNumCyShuffled
-    context "when used with shuttle graphs" $ do
-      it "has (2 + 3*n + n^2) cycles" $ property $
-        prop_goodShuttleGraphNumCy
+    -- context "when used with a simple cycle (shuffled)" $ do
+    --   it "has 2 cycles" $ property $
+    --     prop_goodCycleGraphNumCyShuffled
+    -- context "when used with complete graphs" $ do
+    --   it "has Sum[Product[(i - k + n)/k, {i, 1, k}], {k, 3, n}] cycles" $ property $
+    --     prop_goodCompleteGraphNumCy
+    -- context "when used with complete graphs (shuffled)" $ do
+    --   it "has Sum[Product[(i - k + n)/k, {i, 1, k}], {k, 3, n}] cycles" $ property $
+    --     prop_goodCompleteGraphNumCyShuffled
+    -- context "when used with shuttle graphs" $ do
+    --   it "has (2 + 3*n + n^2) cycles" $ property $
+    --     prop_goodShuttleGraphNumCy
     context "when used with shuttle graphs (shuffled)" $ do
       it "has (2 + 3*n + n^2) cycles" $ property $
         prop_goodShuttleGraphNumCyShuffled
@@ -389,23 +393,20 @@ main' = hspec $ do
     context "when used with wheel graphs (shuffled)" $ do
       it "has 2*((n-1)*(n-2) + 1) cycles" $ property $
         prop_goodWheelGraphNumCyShuffled
-  describe "graphToMaxCyCode" $ do
-    context "when used with complete graphs" $ do
-      it "agrees in its solutions with graphToNumCycles" $ property $
-        prop_goodCompleteGraphMaxCy
-    context "when used with shuttle graphs" $ do
-      it "agrees in its solutions with graphToNumCycles" $ property $
-        prop_goodShuttleGraphMaxCy
-    context "when used with wheel graphs" $ do
-      it "agrees in its solutions with graphToNumCycles" $ property $
-        prop_goodWheelGraphMaxCy
-
--- Add progress bar or at least printer for how many done/left
--- Modify graphToMaxcyCode to allow for variable c filenames (longish)
+  -- describe "graphToMaxCyCode" $ do
+    -- context "when used with complete graphs" $ do
+    --   it "agrees in its solutions with graphToNumCycles" $ property $
+    --     prop_goodCompleteGraphMaxCy
+    -- context "when used with shuttle graphs" $ do
+    --   it "agrees in its solutions with graphToNumCycles" $ property $
+    --     prop_goodShuttleGraphMaxCy
+    -- context "when used with wheel graphs" $ do
+    --   it "agrees in its solutions with graphToNumCycles" $ property $
+    --     prop_goodWheelGraphMaxCy
 
 makeMaxcyForAll :: [(String,[[Int]])] -> IO ()
 makeMaxcyForAll listofgraphs = do
-  tupList <- return $ enum strippedList
+  let tupList = enum strippedList
   mapM_ makeCode tupList
   putStrLn "Done."
     where
@@ -419,7 +420,7 @@ makeCode graphTup = do
       graphNum = fst graphTup
       graph = snd graphTup
       splitbits = if length graph > 40 then length graph - 40 else 0
-      foldername = "graphNum_" ++ show (length graph)
+      foldername = "graphNum_" ++ show (length graph) ++ "_" ++ show graphNum
       filename = foldername
 
 main :: IO ()

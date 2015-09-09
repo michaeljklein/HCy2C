@@ -1,6 +1,7 @@
 module Cycles.Findcy where
 
 import Cycles.Aux
+import Data.Function
 
 -- | Given two edges and whether the graph is directed, this function gives whether they are adjacent
 edgeAdjacent :: [Int] -> [Int] -> Bool -> Bool
@@ -15,9 +16,9 @@ edgeAdjacent e1 e2 directed = if directed
     overlapping1 = a == d
     overlapping2 = b == c
     overlapping3 = b == d
-    a = e1 !! 0
+    a = head e1
     b = e1 !! 1
-    c = e2 !! 0
+    c = head e2
     d = e2 !! 1
 
 -- | Given an edge, graph and whether it is directed, this function returns the list of indices of edges adjacent to the given edge
@@ -40,7 +41,7 @@ vadjpos v1 graph directed = if directed
                                then not_v1 $ has_v1_fst graph
                                else not_v1 $ has_v1 graph
   where
-    has_v1     = filter (\e ->elem v1 e)
+    has_v1     = filter (\e ->v1 `elem` e)
     has_v1_fst = filter (\e ->head e == v1)
     not_v1     = map (\e -> if head e == v1 then last e else head e)
 
@@ -71,13 +72,13 @@ vertexAdjacencyLists graph directed = map (\vi -> vadjpos vi graph directed) [0.
 --      The biggest plus? This algorithm is stupid-fast. The last big test I ran outputted ~1.5GB of cycles from ~2k strongly-connected graphs, |E|<=36  in under 30s.
 --
 -- Note: graph (edgelist), cfilename, are assumed variables
-generateFindCyCode :: [[Int]] -> [Char] -> Bool -> Bool -> [Char]
-generateFindCyCode graph cfilename justCount directed = unlines $ map (\s -> formatByDict s dict) codelist
+generateFindCyCode :: [[Int]] -> String -> Bool -> Bool -> String
+generateFindCyCode graph cfilename justCount directed = unlines $ map (`formatByDict` dict) codelist
     where
         glen = gmax + 1 -- length graph
         gmax = max2 adj_lists -- length $ tail graph
         maxd = digLen10 glen
-        outfilename = (init cfilename) ++ "txt"
+        outfilename = init cfilename ++ "txt"
 
         dict = [(":print_cycle",   print_cycle),
                 (":init_lookup",   init_lookup),
@@ -104,12 +105,12 @@ generateFindCyCode graph cfilename justCount directed = unlines $ map (\s -> for
         print_cycle = if not justCount then "void print_cycle(FILE * outfile, unsigned int * this_current_path){" else "void print_cycle(unsigned int * this_current_path){"
 
         -- :init_lookup   char lookup[4][1] = {"0","1","2","3"};
-        init_lookup_list = "    char lookup[" ++ (show glen) ++ "][" ++ (show maxd) ++ "] = {" ++ (tail $ init $ show vallist) ++ "};"
+        init_lookup_list = "    char lookup[" ++ show glen ++ "][" ++ show maxd ++ "] = {" ++ tail (init $ show vallist) ++ "};"
                 where
-                    vallist = map (\n -> padStrLeft0s (show n) maxd) [0..(gmax)]
+                    vallist = map (\n -> padStrLeft0s (show n) maxd) [0..gmax]
 
         -- :init_str      char str[13] = "[_,_,_,_]\n"; -- Note that there could be multiple '_'s
-        init_str_list = "    char str[" ++ show (3 + glen * maxd + glen - 1) ++ "] = \"[" ++ (init $ concat $ replicate (glen) ((concat (replicate (digLen10 $ glen) "_")) ++ ",")) ++ "]\\n\";"
+        init_str_list = "    char str[" ++ show (3 + glen * maxd + glen - 1) ++ "] = \"[" ++ init (concat $ replicate glen (concat (replicate (digLen10 glen) "_") ++ ",")) ++ "]\\n\";"
 
         {- :init_strs
             str[1] = lookup[this_current_path[0]][0];
@@ -117,12 +118,12 @@ generateFindCyCode graph cfilename justCount directed = unlines $ map (\s -> for
             str[5] = lookup[this_current_path[2]][0];
             str[7] = lookup[this_current_path[3]][0];
         -}
-        init_strs_list = unlines $ map (\pathpos -> unlines $ map (\digpos -> "    str[" ++ show (pathpos * (maxd+1) + digpos + 1) ++ "] = lookup[this_current_path[" ++ (show pathpos) ++ "]][" ++ (show digpos) ++ "];") [0..(maxd-1)]) [0..gmax]
+        init_strs_list = unlines $ map (\pathpos -> unlines $ map (\digpos -> "    str[" ++ show (pathpos * (maxd+1) + digpos + 1) ++ "] = lookup[this_current_path[" ++ show pathpos ++ "]][" ++ show digpos ++ "];") [0..(maxd-1)]) [0..gmax]
         -- numparts = \j -> "    str[" ++ (show (j * (maxd + 1) + i
         -- pathparts = \i -> unlines $ map numparts [0..(maxd-1)]
         -- init_strs_list = unlines $ map pathparts [0..(glen-1)]
         -- :fwrite_str    fwrite(str, 1, 13, outfile);
-        fwrite_str_list = "    fwrite(str, 1, " ++ show (3 + (glen) * (digLen10 $ glen) + (glen) - 1) ++ ", outfile);"
+        fwrite_str_list = "    fwrite(str, 1, " ++ show (3 + glen * digLen10 glen + glen - 1) ++ ", outfile);"
 
         init_lookup = if not justCount then init_lookup_list else ""
         init_str    = if not justCount then init_str_list else ""
@@ -132,7 +133,7 @@ generateFindCyCode graph cfilename justCount directed = unlines $ map (\s -> for
         fwrite_graph= if not justCount then fwrite_graph_write else ""
 
         --"    if (start != 2 ) {"
-        ifstart = "    if (start != " ++ (show (glen - 2)) ++ " ) {" -- (glen - 2) because if there are only 2 vertices left, there is no room for an additional cycle in the remaining graph
+        ifstart = "    if (start != " ++ show (glen - 2) ++ " ) {" -- (glen - 2) because if there are only 2 vertices left, there is no room for an additional cycle in the remaining graph
         {- :init_vos
                           const unsigned int vo0[3] = {1, 2, 3};
                           const unsigned int vo1[1] = {2};
@@ -145,36 +146,36 @@ generateFindCyCode graph cfilename justCount directed = unlines $ map (\s -> for
         --dadj_lists= map (\v ->sort $ map (otherElem v) (filter (\e -> (last e) == v) graph)) [0..(glen -1)]
         adj_lists = vertexAdjacencyLists graph directed --edgeAdjacencyLists graph directed
 
-        cadj_lists = unlines' $ zipWith (\l i -> "    const unsigned int vo" ++ (show i) ++ "[" ++ (show $ length l) ++ "] = {" ++ (trim $ show l) ++ "};") adj_lists [0..]
-        voss = "    const unsigned int * vos[" ++ (show glen) ++ "] = {" ++ (tail $ concat $ zipWith (++) [",vo" | x <- [0..]] (map show [0..(gmax)])) ++ "};"
+        cadj_lists = unlines' $ zipWith (\l i -> "    const unsigned int vo" ++ show i ++ "[" ++ show (length l) ++ "] = {" ++ trim (show l) ++ "};") adj_lists [0..]
+        voss = "    const unsigned int * vos[" ++ show glen ++ "] = {" ++ tail (concat $ zipWith (++) [",vo" | x <- [0..]] (map show [0..gmax])) ++ "};"
 --        (init $ tail $ tail $ zipWith (++) [",vo" | x <- [0..]] (map show [0..gmax])) ++ "};"
-        init_vos = (cadj_lists ++ voss)
+        init_vos = cadj_lists ++ voss
 
         -- :init_vomax    const unsigned int vomax[4] = {3, 1, 1, 1};
-        init_vomax = "    const unsigned int vomax[" ++ (show glen) ++ "] = {" ++ (trim $ show $ map length adj_lists) ++ "};"
+        init_vomax = "    const unsigned int vomax[" ++ show glen ++ "] = {" ++ trim (show $ map length adj_lists) ++ "};"
 
         -- :init_paths    unsigned int current_path[4];
         --                unsigned int adjacency_path[4];
-        init_paths = "    unsigned int current_path[" ++ (show glen) ++ "];\n    unsigned int adjacency_path[" ++ show glen ++ "];"
+        init_paths = "    unsigned int current_path[" ++ show glen ++ "];\n    unsigned int adjacency_path[" ++ show glen ++ "];"
 
         -- :init_fresh    unsigned char fresh[4] = {1,1,1,1};
         --                unsigned char inplay[4] = {1,1,1,1};
-        init_fresh = "    unsigned char fresh[" ++ (show glen) ++ "] = {" ++ (trim $ show $ replicate glen 1) ++ "};\n    unsigned char inplay[" ++ (show glen) ++ "] = {" ++ (trim $ show $ replicate glen 1) ++ "};"
+        init_fresh = "    unsigned char fresh[" ++ show glen ++ "] = {" ++ trim (show $ replicate glen 1) ++ "};\n    unsigned char inplay[" ++ show glen ++ "] = {" ++ trim (show $ replicate glen 1) ++ "};"
 
         -- :init_file     FILE * outfile = fopen("checking.txt", "w");
         init_file_write = "    FILE * outfile = fopen(\"" ++ outfilename ++ "\", \"w\");"
 
         -- :fwrite_graph  fwrite("[[0,1],[0,2],[0,3],[1,2],[3,1],[2,3]]\n",1,39,outfile);
-        fwrite_graph_write = "    fwrite(\"" ++ (show graph) ++ "\\n\", 1," ++ (show $ (length' $ '0':(show graph))) ++ ",outfile);"
+        fwrite_graph_write = "    fwrite(\"" ++ show graph ++ "\\n\", 1," ++ show (length' $ '0':show graph) ++ ",outfile);"
 
         -- :assign_fresh  fresh[0] = inplay[0]; fresh[1] = inplay[1]; fresh[2] = inplay[2]; fresh[3] = inplay[3];
-        assign_fresh = "    " ++ (concat $ map (\i -> "fresh[" ++ show i ++ "] = inplay[" ++ show i ++ "]; ") [0..(glen - 1)])
+        assign_fresh = "    " ++ concatMap (\i -> "fresh[" ++ show i ++ "] = inplay[" ++ show i ++ "]; ") [0..(glen - 1)]
 
         -- :assign_cpath  current_path[0] = start; current_path[1] = 0; current_path[2] = 0; current_path[3] = 0;
-        assign_cpath = "    current_path[0] = start; " ++ (concat $ map (\i -> "current_path[" ++ show i ++ "] = 0; ") [1..(glen-1)])
+        assign_cpath = "    current_path[0] = start; " ++ concatMap (\i -> "current_path[" ++ show i ++ "] = 0; ") [1..(glen-1)]
 
         -- :assign_apath  adjacency_path[0] = 0; adjacency_path[1] = 0; adjacency_path[2] = 0; adjacency_path[3] = 0;,
-        assign_apath = "    " ++ (concat $ map (\i -> "adjacency_path[" ++ show i ++ "] = 0; ") [0..(glen-1)])
+        assign_apath = "    " ++ concatMap (\i -> "adjacency_path[" ++ show i ++ "] = 0; ") [0..(glen-1)]
 
         --"                                    print_cycle(outfile, current_path);",
         put_cycle = if not justCount then "                                    print_cycle(outfile, current_path);" else "                                    print_cycle(current_path);"

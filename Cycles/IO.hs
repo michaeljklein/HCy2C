@@ -112,7 +112,7 @@ graphToMaxcyCode graphlist splitbits foldername filename = do
   -- putStrLn "2"
   let endhere = splitbits
   -- putStrLn "3"
-  let startmap = \start -> (show start, (fst $ generateMaxCyCodeAtStart graphlist cycles endhere splitbits filename) start)
+  let startmap start = (show start, (fst $ generateMaxCyCodeAtStart graphlist cycles endhere splitbits filename) start)
   --let startmap = \start ->liftM (\cy -> (show start, fst $ generateMaxCyCode graphlist cy start endhere splitbits)) cycles
   let codelist = map startmap  [0..(2^splitbits)-1] :: [(String, String)]
   removeDirIfExists foldername
@@ -131,7 +131,7 @@ graphToMaxcyCode graphlist splitbits foldername filename = do
         -- putStrLn startline
         let maxfilenum = 2^splitbits
         -- putStrLn "5"
-        let outfilenamefun s = foldername ++ "/" ++ filename ++ s ++ "_" ++ show (maxfilenum - 1) ++ ".c"
+        let outfilenamefun s = foldername ++ "/" ++ filename ++ "_" ++ s ++ "_" ++ show (maxfilenum - 1) ++ ".c"
         -- putStrLn "6"
         let outfilename = outfilenamefun start
         -- outfilenameline <- return $ (\ofn ->"7\n" ++ ofn) outfilename
@@ -148,7 +148,7 @@ compileAllInDir :: String -> IO ()
 compileAllInDir dir = do
   files <- getDirectoryContents dir
   let cFile file = (last file == 'c') && (last (init file) == '.')
-  code_files <- return $ filter cFile files
+  let code_files = filter cFile files
   let compile file = readProcess "gcc" [dir ++ "/" ++ file, "-O3", "-o", file ++ "_temp"] [] >>= putStrLn
   mapM_ compile code_files
 
@@ -156,7 +156,7 @@ compileAllInDir dir = do
 runAllInDir :: String -> IO ()
 runAllInDir dir = do
   files <- getDirectoryContents dir
-  exec_files <- return $ filter execFile files
+  let exec_files = filter execFile files
   let run file = readProcess ("./" ++ file) [] [] >>= putStrLn
   mapM_ run exec_files
     where

@@ -2,6 +2,7 @@ module Cycles.Maxcy where
 
 import Cycles.Aux
 import Data.Bits ( Bits((.&.), (.|.), bit) )
+import Data.Function
 import Data.List ( foldl', sort, sortBy )
 import Data.List.Split ( chunksOf )
 import Data.String.Utils ( replace )
@@ -14,37 +15,37 @@ convIndivCycle elist vlist = loop elist tvlist []
                         where
                             loop :: Integral a => [[a]] -> [a] -> [(Bool, a)] -> [(Bool, a)]
                             loop _ [] output = output
-                            loop elist' vlist' output = loop elist' (tail vlist') (if (length vlist') < 2
+                            loop elist' vlist' output = loop elist' (tail vlist') (if length vlist' < 2
                                                                                     then output
-                                                                                    else (vlist'!!0 < vlist'!!1, elemIndex' (sort (take 2 vlist')) elist' 0):output )
+                                                                                    else (head vlist' < vlist'!!1, elemIndex' (sort (take 2 vlist')) elist' 0):output )
                             tvlist = wrapAround $ trimList vlist
 
 
 -- | aVarList is a[var][j]
 aVarList :: (Integral a, Bits a, Integral b, Bits b) => [[(Bool, a)]] -> a -> [b]
-aVarList cyclelists var = map (\x ->bool $ elem var x) (map (\y -> map (\x -> snd x) y) cyclelists)
+aVarList cyclelists var = map ((bool . elem var) . map snd) cyclelists
 
 -- | bVarList is b[var][j]
 bVarList :: (Integral a, Bits a) => [[(Bool, a)]] -> a -> [a]
-bVarList cyclelists var = map gettf (map (\y -> (filter (\x -> (snd x) == var) y)) cyclelists)
+bVarList cyclelists var = map (gettf . filter (\x -> snd x == var)) cyclelists
                     where
                         gettf :: Integral a => [(Bool, a)] -> a
-                        gettf list = if list == []
+                        gettf list = if null list
                                         then 0
-                                        else bool $ fst $ head $ list
+                                        else bool $ fst $ head list
 
 -- | This combines the 'aVarList' and 'bVarList' lists to give the combined cVarList
 -- | Note: (1-x) == ~x for x <- [0,1]
 cVarList :: (Integral a, Bits a) => [a] -> [a] -> [a]
-cVarList avlist bvlist = zipWith (\a b -> (1-a) .|. (1-b) ) avlist bvlist
+cVarList = zipWith ((.|.) `Data.Function.on` (-) 1)
 
 -- | This combines the 'aVarList' and 'bVarList' lists to give the combined dVarList
 dVarList :: (Integral a, Bits a) => [a] -> [a] -> [a]
-dVarList avlist bvlist = zipWith (\a b -> (1-a) .|.    b  ) avlist bvlist
+dVarList = zipWith (\a b -> (1-a) .|.    b  )
 
 -- | 'listToULL' converts a length <= 64 list of 0,1 values into a single 'CULLong'
 listToULL :: Integral a => [a] -> CULLong
-listToULL list = if (length list) > 64
+listToULL list = if length list > 64
                     then error "You want to use listToULLs for this (You're using listToULL)."
                     else foldl' (.|.) 0 (zipWith (\x y -> if x == 0 then 0 else bit y) (padMod list 0 64) [0..])
 
@@ -65,19 +66,19 @@ listFirstAnd :: [[CULLong]] -> [[CULLong]] -> [[CULLong]] -> [[CULLong]]
 listFirstAnd [] _  _  = []
 listFirstAnd a  [] _  = a
 listFirstAnd a  _  [] = a
-listFirstAnd a  b  c  = (zipWith (.&.) (head b) (head c)):(tail a)
+listFirstAnd a  b  c  = zipWith (.&.) (head b) (head c) : tail a
 
 -- | This function maps snd to the second level of a list of lists
 sndMap2 :: [[(a,b)]] -> [[b]]
-sndMap2 lists = map (\l ->map snd l) lists
+sndMap2 = map (map snd)
 
 -- | This function gives the largest element of a list greater than '0', or zero if all the elements are negative
 maxPositive :: (Ord a, Num a) => [a] -> a
-maxPositive list = foldl (\sofar next ->if sofar >= next then sofar else next) 0 list
+maxPositive = foldl (\sofar next ->if sofar >= next then sofar else next) 0
 
 -- | This function gives the tuple in a list that has the greates positive snd element
 maxPositiveSnd :: (Num a, Ord b, Num b) => [(a,b)] -> (a,b)
-maxPositiveSnd list = foldl (\sofar next -> if (snd sofar) >= (snd next) then sofar else next) (-1,-1) list
+maxPositiveSnd = foldl (\sofar next -> if snd sofar >= snd next then sofar else next) (-1,-1)
 
 -- | This function gives the maxPositive for a list of lists
 listsMaxPositive :: (Ord a, Num a) => [[a]] -> a
@@ -85,7 +86,7 @@ listsMaxPositive lists = maxPositive $ map maxPositive lists
 
 -- | This function counts the number of occurances of x in lists
 tallyElem :: Eq a => [[a]] -> a -> Int
-tallyElem lists x = foldl (\count list ->count + (bool $ elem x list)) 0 lists
+tallyElem lists x = foldl (\count list ->count + bool (x `elem` list)) 0 lists
 
 -- | This function finds some most commonly occuring snd element in a list of lists
 aMostOftenElem :: [[(a, Int)]] -> Int
@@ -104,7 +105,7 @@ switchInTupLists lists a b = switchOne interLists1 interElem b
     interElem = maximum + 1
     interLists0 = switchOne lists a interElem
     interLists1 = switchOne interLists0 b a
-    switchOne lists0 a0 b0 = map (\l ->map (\e ->if (snd e) == a0 then (fst e, b0) else e) l) lists0
+    switchOne lists0 a0 b0 = map (map (\e ->if snd e == a0 then (fst e, b0) else e)) lists0
 
 -- | This function makes sure that '0' is a most often snd element in a list of lists
 frontLoadTupLists :: [[(a, Int)]] -> [[(a, Int)]]
@@ -117,21 +118,21 @@ trimCycleList :: [[(Bool, Int)]] -> [[(Bool, Int)]]
 trimCycleList cyclelist = switchInTupLists refrontloaded 0 (aMostOftenElem refrontloaded)
   where
     frontloaded = frontLoadTupLists cyclelist
-    trimmed = map (\cy ->if elem (True, 0) cy then tail cy else cy) frontloaded -- if a cycle has (forward,0) then remove it
+    trimmed = map (\cy ->if (True, 0) `elem` cy then tail cy else cy) frontloaded -- if a cycle has (forward,0) then remove it
     refrontloaded = frontLoadTupLists cyclelist
 
-addLLUs :: [[CULLong]] -> [Char]
-addLLUs list = (\s ->"[" ++ s ++ "]") $ init $ concat $ map addLLUsSingleDepth list
+addLLUs :: [[CULLong]] -> String
+addLLUs list = (\s ->"[" ++ s ++ "]") $ init $ concatMap addLLUsSingleDepth list
 	where
-		addLLUsSingleDepth u = (\s ->"[" ++ s ++ "],") $ init $ concat $ map (\y ->(show y) ++ "LLU,") u
+		addLLUsSingleDepth u = (\s ->"[" ++ s ++ "],") $ init $ concatMap (\y ->show y ++ "LLU,") u
 
 -- | This function is a version of 'generateMaxCyCodeAtStart' that is cross-compatible with the previous way of generating the C code to find the maximally cyclic orientations of a graph
-generateMaxCyCode :: [[Int]] -> [[Int]] -> Int -> Int -> Int -> [Char] -> (String, String)
-generateMaxCyCode graph cycles start end splitbits name = ((fst starter) start, snd starter)
+generateMaxCyCode :: [[Int]] -> [[Int]] -> Int -> Int -> Int -> String -> (String, String)
+generateMaxCyCode graph cycles start end splitbits name = (fst starter start, snd starter)
   where
-    starter = (generateMaxCyCodeAtStart graph cycles end splitbits name)
+    starter = generateMaxCyCodeAtStart graph cycles end splitbits name
 
--- | This function creates a function which may be mapped to a start value (to reduce overhead in splitting up the files) to produce C code. These C code files may be compiled to produce independent programs, able to be run in parallel or even on seperate machines with different architectures. 
+-- | This function creates a function which may be mapped to a start value (to reduce overhead in splitting up the files) to produce C code. These C code files may be compiled to produce independent programs, able to be run in parallel or even on seperate machines with different architectures.
 --  Assuming variables are unlimited width for the purposes of explaining the logic: (1 is true, 0 is false) (i is the variable index, j is the digit index)
 --
 --	a[i][j] := is the ith edge in the jth cycle?
@@ -149,15 +150,15 @@ generateMaxCyCode graph cycles start end splitbits name = ((fst starter) start, 
 --	y[i][j] := is ith edge backward? (so 0 is forward, 1 is backward)
 --
 --	A[i][j] := A[i-1][j] & (~y[j] | c[i][j]) & (y[j] | d[i][j]
-generateMaxCyCodeAtStart :: [[Int]] -> [[Int]] -> Int -> Int -> [Char] -> (Int -> String, String)
-generateMaxCyCodeAtStart graph cycles end splitbits filename = (\start ->(unlines introlist) ++ ((starthere start) ++ (fout start)) ++ (unlines $ map (\s -> formatByDict s dict) codelist), printout)
+generateMaxCyCodeAtStart :: [[Int]] -> [[Int]] -> Int -> Int -> String -> (Int -> String, String)
+generateMaxCyCodeAtStart graph cycles end splitbits filename = (\start ->unlines introlist ++ (starthere start ++ fout start) ++ unlines (map (`formatByDict` dict) codelist), printout)
     where
         twotothesplitbits = 2^splitbits
-        printout = unlines ["graph:" ++ (show graph),
-                            "cycles:" ++ (show cycles),
-                            "cyclelists:" ++ (show cyclelists),
-                            "alist:" ++ (show alist),
-                            "blist:"++(show blist),
+        printout = unlines ["graph:" ++ show graph,
+                            "cycles:" ++ show cycles,
+                            "cyclelists:" ++ show cyclelists,
+                            "alist:" ++ show alist,
+                            "blist:" ++ show blist,
                             "clist:",
                             --printULLs clist,
                             "dlist:",
@@ -165,15 +166,15 @@ generateMaxCyCodeAtStart graph cycles end splitbits filename = (\start ->(unline
                             "aalist:"] -- ,
                             --printULLs aalist ]
 
-        cyclelistsUntrimmed = map sortBySnd (map (\c -> convIndivCycle graph c) cycles)
+        cyclelistsUntrimmed = map (sortBySnd . convIndivCycle graph) cycles
         cyclelists = trimCycleList cyclelistsUntrimmed
 
-        alist = map (\var -> aVarList cyclelists var) [0..(-1 + length' graph)]
-        blist = map (\var -> bVarList cyclelists var) [0..(-1 + length' graph)]
+        alist = map (aVarList cyclelists) [0..(-1 + length' graph)]
+        blist = map (bVarList cyclelists) [0..(-1 + length' graph)]
 
-        clist   = map listToULLs (map (\var -> cVarList (fst var) (snd var)) (zip alist blist))
-        dlist   = map listToULLs (map (\var -> dVarList (fst var) (snd var)) (zip alist blist))
-        aalist' = map listToULLs (map (\var -> map (\_ -> 1) var)                 alist       )
+        clist   = map listToULLs (zipWith cVarList alist blist)
+        dlist   = map listToULLs (zipWith dVarList alist blist)
+        aalist' = map (listToULLs . map (const 1)) alist
         aalist  = listFirstAnd aalist' aalist' dlist
 
         dict = [
@@ -194,39 +195,39 @@ generateMaxCyCodeAtStart graph cycles end splitbits filename = (\start ->(unline
          (":fputs",      fputs)]
 
         --":maxpos" static int maxpos = 2;
-        maxpos = "static uint_fast32_t maxpos = " ++ (show (-1 + length' graph)) ++ ";"
+        maxpos = "static uint_fast32_t maxpos = " ++ show (-1 + length' graph) ++ ";"
 
         --":endhere" static unsigned int endhere = 0;
-        endhere = "static uint_fast32_t endhere = " ++ (show end) ++ ";" -- log2(maximum_value + 1)
+        endhere = "static uint_fast32_t endhere = " ++ show end ++ ";" -- log2(maximum_value + 1)
 
         --":starthere" unsigned int starthere = 0;
-        starthere = (\startplace ->"uint_fast32_t starthere = " ++ (show $ 2 * startplace) ++ ";\n") :: Int -> [Char] --The '2*' is to bitshift past the fixed '0' at position '0'.
+        starthere = (\startplace ->"uint_fast32_t starthere = " ++ show (2 * startplace) ++ ";\n") :: Int -> String --The '2*' is to bitshift past the fixed '0' at position '0'.
 
         --":cstr" char str[13] = {0,0,0,0,0,0,0,0,0,0,0,0,0};
-        cstr = "char str[" ++ (show $ 10 + length graph) ++ "] = {" ++ (trim $ show $ replicate (10 + length graph) 0) ++ "};" --10 is not very magic, just count the chars in the output and leave a few to spare
+        cstr = "char str[" ++ show (10 + length graph) ++ "] = {" ++ trim (show $ replicate (10 + length graph) 0) ++ "};" --10 is not very magic, just count the chars in the output and leave a few to spare
 
         --":carray" static unsigned long long int C[3][1] = {{18446744073709551614LLU}, {18446744073709551614LLU}, {18446744073709551613LLU}};
-        carray = ("static uint_fast64_t C[" ++ (show $ length clist) ++ "][" ++ (show $ length $ head clist) ++ "] = " ++ (replace "]" "}" (replace "[" "{" (addLLUs clist))) ++ ";")
+        carray = "static uint_fast64_t C[" ++ show (length clist) ++ "][" ++ show (length $ head clist) ++ "] = " ++ replace "]" "}" (replace "[" "{" (addLLUs clist)) ++ ";"
 
         --":darray" static unsigned long long int D[3][1] = {{18446744073709551613LLU}, {18446744073709551613LLU}, {18446744073709551614LLU}};
-        darray = ("static uint_fast64_t D[" ++ (show $ length dlist) ++ "][" ++ (show $ length $ head dlist) ++ "] = " ++ (replace "]" "}" (replace "[" "{" (addLLUs dlist))) ++ ";")
+        darray = "static uint_fast64_t D[" ++ show (length dlist) ++ "][" ++ show (length $ head dlist) ++ "] = " ++ replace "]" "}" (replace "[" "{" (addLLUs dlist)) ++ ";"
 
         --":xarray" unsigned int X[3] = {0, 0, 0};
-        xarray = "uint_fast8_t X[" ++ (show $ length graph) ++ "] = {" ++ (trim $ show $ replicate (length graph) 0) ++ "};"
+        xarray = "uint_fast8_t X[" ++ show (length graph) ++ "] = {" ++ trim (show $ replicate (length graph) 0) ++ "};"
 
         --":aarray" unsigned long long int A[3][1] = {{18446744073709551615LLU}, {18446744073709551615LLU}, {18446744073709551615LLU}};
-        aarray = ("uint_fast64_t A[" ++ (show $ length graph) ++ "][" ++ (show $ length $ head aalist) ++ "] = " ++ (replace "]" "}" (replace "[" "{" (addLLUs aalist))) ++ ";")
+        aarray = "uint_fast64_t A[" ++ show (length graph) ++ "][" ++ show (length $ head aalist) ++ "] = " ++ replace "]" "}" (replace "[" "{" (addLLUs aalist)) ++ ";"
 
         --":fops_true" A[i][0] = A[i-1][0] & C[i][0];
-        fops_true  = unlines $ map (\j -> "        A[i][" ++ (show j) ++ "] = A[i-1][" ++ show j ++ "] & C[i][" ++ show j ++ "];")  [0..(length' $ init $ head aalist)]
+        fops_true  = unlines $ map (\j -> "        A[i][" ++ show j ++ "] = A[i-1][" ++ show j ++ "] & C[i][" ++ show j ++ "];")  [0..(length' $ init $ head aalist)]
 
         --":fops_false"  A[i][0] = A[i-1][0] & D[i][0];
-        fops_false = unlines $ map (\j -> "        A[i][" ++ (show j) ++ "] = A[i-1][" ++ show j ++ "] & D[i][" ++ show j ++ "];")  [0..(length' $ init $ head aalist)]
+        fops_false = unlines $ map (\j -> "        A[i][" ++ show j ++ "] = A[i-1][" ++ show j ++ "] & D[i][" ++ show j ++ "];")  [0..(length' $ init $ head aalist)]
 
         --sprintf(str, "[               ,%5d]\n", this);
-        printouter_sprint = "    sprintf(str, \"[" ++ (replicate (length graph) ' ')  ++ ",%5d]\\n\", this);"
+        printouter_sprint = "    sprintf(str, \"[" ++ replicate (length graph) ' '  ++ ",%5d]\\n\", this);"
         -- str[1] = X[0] ^ 48;
-        printouter_xors = unlines ["    str[" ++ (show i) ++ "] = X[" ++ (show (i-1)) ++ "] ^ 48;" | i <- [1..(length graph)]]
+        printouter_xors = unlines ["    str[" ++ show i ++ "] = X[" ++ show (i-1) ++ "] ^ 48;" | i <- [1..(length graph)]]
         printouter = unlines ["void printout(){", printouter_sprint, printouter_xors, "}"]
 
         --":counter"    this += counter(A[maxpos][0]);
@@ -238,10 +239,10 @@ generateMaxCyCodeAtStart graph cycles end splitbits filename = (\start ->(unline
         --"        sprintf(str, \"[" ++ (concat $ replicate' "%d" (length graph)) ++ ",%5d]\\n\", " ++ (concat (map (\x -> concat ["X[",show x,"],"]) [0..(-1 + length graph)])) ++ "this );"
 
         --":fout"    fout = fopen("test_0_0_out.txt", "w");
-        fout = (\startplace ->"#define fopener fopen(\"" ++ filename ++ (show startplace) ++ "_" ++ (show twotothesplitbits) ++ "_out.txt\", \"w\")\n") :: Int -> [Char]
+        fout = (\startplace ->"#define fopener fopen(\"" ++ filename ++ "_" ++ show startplace ++ "_" ++ show twotothesplitbits ++ "_out.txt\", \"w\")\n") :: Int -> String
 
         --":fputs"    fputs("[[0, 1], [1, 2], [0, 2]]\n", fout);
-        fputs = "    fputs(\"" ++ (show graph) ++ "\\n\", fout);"
+        fputs = "    fputs(\"" ++ show graph ++ "\\n\", fout);"
 
         introlist = ["#include <stdio.h>",
             "#include <stdint.h>",
@@ -415,7 +416,7 @@ generateMaxCyCodeAtStart graph cycles end splitbits filename = (\start ->(unline
             ""]
 
 -- | This generates the inline assembly for the popcount of four 64-bit unsigned integers
-makeAsmCounter4 :: Int -> [Char]
+makeAsmCounter4 :: Int -> String
 makeAsmCounter4 j = unlines  ["    __asm__(",
                               "            \"popcnt %4, %4 \\n\\t\"",
                               "            \"add %4, %0    \\n\\t\"",
@@ -434,7 +435,7 @@ makeAsmCounter4 j = unlines  ["    __asm__(",
     j3 = show (j+3)
 
 -- | This generates the inline assembly for the popcount of two 64-bit unsigned integers
-makeAsmCounter2 :: Int -> [Char]
+makeAsmCounter2 :: Int -> String
 makeAsmCounter2 j = unlines  ["    __asm__(",
                               "            \"popcnt %2, %2  \\n\\t\"",
                               "            \"add %2, %0     \\n\\t\"",
@@ -447,7 +448,7 @@ makeAsmCounter2 j = unlines  ["    __asm__(",
     j1 = show (j+1)
 
 -- | This generates the inline assembly for the popcount of one 64-bit unsigned integer
-makeAsmCounter1 :: Int -> [Char]
+makeAsmCounter1 :: Int -> String
 makeAsmCounter1 j = unlines  ["    __asm__(",
                               "           \"popcnt %1, %1  \\n\\t\"",
                               "           \"add %1, %0     \\n\\t\"",
@@ -457,33 +458,33 @@ makeAsmCounter1 j = unlines  ["    __asm__(",
     j0 = show (j+0)
 
 -- | This generates the inline assembly for the popcount of arbitrarily many 64-bit unsigned integers
-makeAsmCounterN :: Int -> [Char]
+makeAsmCounterN :: Int -> String
 makeAsmCounterN n = expand ([], 0, n)
     where
       expand (code, at, max)
-          | (max - at) >= 4 = expand (code ++ (makeAsmCounter4 at), at + 4, max)
-          | (max - at) >= 2 = expand (code ++ (makeAsmCounter2 at), at + 2, max)
-          | (max - at) >= 1 = expand (code ++ (makeAsmCounter1 at), at + 1, max)
+          | (max - at) >= 4 = expand (code ++ makeAsmCounter4 at, at + 4, max)
+          | (max - at) >= 2 = expand (code ++ makeAsmCounter2 at, at + 2, max)
+          | (max - at) >= 1 = expand (code ++ makeAsmCounter1 at, at + 1, max)
           | otherwise      = code
 
 -- | This generates the C code for a function utilizing inline assembly to find the total popcount of a length 'n' uint64_t buffer
 makeAsmCounter n = unlines ["int counter (uint64_t * buf){",
-                            "    uint64_t cnt[" ++ (show n) ++ "];",
-                            unlines ["    cnt[" ++ (show i) ++ "] = 0;" | i <- [0..(n-1)]],
+                            "    uint64_t cnt[" ++ show n ++ "];",
+                            unlines ["    cnt[" ++ show i ++ "] = 0;" | i <- [0..(n-1)]],
                             makeAsmCounterN n,
                             "",
-                            foldl (++) "" $ "    return cnt[0]" : [" + cnt[" ++ (show k) ++ "]" | k <- [1..(n-1)]] ++ [";"],
+                            concat $ "    return cnt[0]" : [" + cnt[" ++ show k ++ "]" | k <- [1..(n-1)]] ++ [";"],
                             "}"]
 
 -- | This makes a CULLong into a more or less readable string for debugging
 listFromULL :: CULLong -> String
 listFromULL 0 = []
-listFromULL x = (listFromULL $ div x 2) ++ (show (x .&. 1))
+listFromULL x = listFromULL (div x 2) ++ show (x .&. 1)
 
 -- | This makes a [[CULLong]] into a more or less readable string for debugging
 printULLs :: [[CULLong]] -> String
-printULLs l = unlines $  map (\x -> show $ map listFromULL x) l
+printULLs = unlines . map (show . map listFromULL)
 
 -- | This sorts a list of tuples by the snd element
 sortBySnd :: Ord b => [(a,b)] -> [(a,b)]
-sortBySnd list = sortBy (\a b -> compare (snd a) (snd b)) list
+sortBySnd = sortBy (compare `Data.Function.on` snd)
