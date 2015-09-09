@@ -126,10 +126,10 @@ addLLUs list = (\s ->"[" ++ s ++ "]") $ init $ concat $ map addLLUsSingleDepth l
 		addLLUsSingleDepth u = (\s ->"[" ++ s ++ "],") $ init $ concat $ map (\y ->(show y) ++ "LLU,") u
 
 -- | This function is a version of 'generateMaxCyCodeAtStart' that is cross-compatible with the previous way of generating the C code to find the maximally cyclic orientations of a graph
-generateMaxCyCode :: [[Int]] -> [[Int]] -> Int -> Int -> Int -> (String, String)
-generateMaxCyCode graph cycles start end splitbits = ((fst starter) start, snd starter)
+generateMaxCyCode :: [[Int]] -> [[Int]] -> Int -> Int -> Int -> [Char] -> (String, String)
+generateMaxCyCode graph cycles start end splitbits name = ((fst starter) start, snd starter)
   where
-    starter = (generateMaxCyCodeAtStart graph cycles end splitbits)
+    starter = (generateMaxCyCodeAtStart graph cycles end splitbits name)
 
 -- | This function creates a function which may be mapped to a start value (to reduce overhead in splitting up the files) to produce C code. These C code files may be compiled to produce independent programs, able to be run in parallel or even on seperate machines with different architectures. 
 --  Assuming variables are unlimited width for the purposes of explaining the logic: (1 is true, 0 is false) (i is the variable index, j is the digit index)
@@ -149,8 +149,8 @@ generateMaxCyCode graph cycles start end splitbits = ((fst starter) start, snd s
 --	y[i][j] := is ith edge backward? (so 0 is forward, 1 is backward)
 --
 --	A[i][j] := A[i-1][j] & (~y[j] | c[i][j]) & (y[j] | d[i][j]
-generateMaxCyCodeAtStart :: [[Int]] -> [[Int]] -> Int -> Int -> (Int -> String, String)
-generateMaxCyCodeAtStart graph cycles end splitbits = (\start ->(unlines introlist) ++ ((starthere start) ++ (fout start)) ++ (unlines $ map (\s -> formatByDict s dict) codelist), printout)
+generateMaxCyCodeAtStart :: [[Int]] -> [[Int]] -> Int -> Int -> [Char] -> (Int -> String, String)
+generateMaxCyCodeAtStart graph cycles end splitbits filename = (\start ->(unlines introlist) ++ ((starthere start) ++ (fout start)) ++ (unlines $ map (\s -> formatByDict s dict) codelist), printout)
     where
         twotothesplitbits = 2^splitbits
         printout = unlines ["graph:" ++ (show graph),
@@ -238,7 +238,7 @@ generateMaxCyCodeAtStart graph cycles end splitbits = (\start ->(unlines introli
         --"        sprintf(str, \"[" ++ (concat $ replicate' "%d" (length graph)) ++ ",%5d]\\n\", " ++ (concat (map (\x -> concat ["X[",show x,"],"]) [0..(-1 + length graph)])) ++ "this );"
 
         --":fout"    fout = fopen("test_0_0_out.txt", "w");
-        fout = (\startplace ->"#define fopener fopen(\"runner_" ++ (show startplace) ++ "_" ++ (show twotothesplitbits) ++ "_out.txt\", \"w\")\n") :: Int -> [Char]
+        fout = (\startplace ->"#define fopener fopen(\"" ++ filename ++ (show startplace) ++ "_" ++ (show twotothesplitbits) ++ "_out.txt\", \"w\")\n") :: Int -> [Char]
 
         --":fputs"    fputs("[[0, 1], [1, 2], [0, 2]]\n", fout);
         fputs = "    fputs(\"" ++ (show graph) ++ "\\n\", fout);"

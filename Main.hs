@@ -5,7 +5,7 @@ import Cycles.Findcy
 import Cycles.IO
 import Cycles.Aux
 
---import Data.GList
+import Data.GList
 
 import Control.Exception (catch, SomeException, throwIO)
 import Control.Monad
@@ -31,21 +31,21 @@ maxNumEdgesForTest = 100
 sort2 lists = sort $ map sort lists
 
 -- | This function takes a string and char and returns everything up to (but not including) that char
-cutUntoChar :: [Char] -> Char -> [Char]
+cutUntoChar :: String -> Char -> String
 cutUntoChar [] _ = []
 cutUntoChar (x:xs) char
     | x == char  = []
-    | otherwise = x : (cutUntoChar xs char)
+    | otherwise = x : cutUntoChar xs char
 
 -- | This function converts a string like "0101010101001010" into a list of Ints
-readBins :: [Char] -> [Int]
+readBins :: String -> [Int]
 readBins [] = []
-readBins ('0':xs) = 0 : (readBins xs)
-readBins ('1':xs) = 1 : (readBins xs)
+readBins ('0':xs) = 0 : readBins xs
+readBins ('1':xs) = 1 : readBins xs
 readBins (_:xs)   = error "list passed not composed of 0's and 1's"
 
 -- | This function converts a solution string (such as "[10101010, 2384]") to a (list of bins, number)
-solutionStrToTup :: [Char] -> ([Int], Int)
+solutionStrToTup :: String -> ([Int], Int)
 solutionStrToTup str = (readBins bins, read num)
   where
     bins = cutUntoChar (tail str) ','
@@ -55,14 +55,14 @@ solutionStrToTup str = (readBins bins, read num)
 --orientGraph :: [Int] -> [[Int]] -> [[Int]] --'0' forward (a<b)
 orientGraph directions graph = if good then map (\tup ->if fst tup then snd tup else reverse $ snd tup) edgeTupList else error "bad graph or directions"
   where
-    edgeTupList = zip (map (\x ->x==0) directions) graph
+    edgeTupList = zip (map (==0) directions) graph
     good = sameLen && orderedEdges && orderedGraph
-    sameLen = (length directions) == (length graph)
-    orderedEdges = foldl (\prev next ->prev && ((head next) < (last next))) True graph
-    orderedGraph = fst $ foldl (\prev next -> if fst prev then ((snd prev) < next, next) else (False, [0,0])) (True, [0,0]) graph
+    sameLen = length directions == length graph
+    orderedEdges = foldl (\prev next ->prev && (head next < last next)) True graph
+    orderedGraph = fst $ foldl (\prev next -> if fst prev then (snd prev < next, next) else (False, [0,0])) (True, [0,0]) graph
 
 -- | This is the first level of the pipe 'strSolutionPipe'
-strSolutionPipe1 :: [Char] -> [[Int]] -> (([Int], Int), [[Int]])
+strSolutionPipe1 :: String -> [[Int]] -> (([Int], Int), [[Int]])
 strSolutionPipe1 string graph = (solutionStrToTup string, graph)
 
 -- | This is the second level of the pipe 'strSolutionPipe'
@@ -73,11 +73,11 @@ strSolutionPipe2 ((binList, number), graph) = (orientGraph binList graph, number
 strSolutionPipe3 :: ([[Int]], Int) -> IO Bool
 strSolutionPipe3 (digraph, number) = do
   ioNum <- graphToNumCycles digraph True
-  supposedNum <- return number
+  let supposedNum = number
   return $ ioNum == supposedNum
 
 -- | This function takes a solution string and a graph and returns whether the solution agrees with the graphToNumCycles interpretation
-strSolutionPipe :: [Char] -> [[Int]] -> IO Bool
+strSolutionPipe :: String -> [[Int]] -> IO Bool
 strSolutionPipe string graph = strSolutionPipe3 $ strSolutionPipe2 $ strSolutionPipe1 string graph
 
 -- | This function takes a file (path) and checks each solution against the graphToNumCycles interpretation
@@ -88,7 +88,7 @@ checkMaxCySolution file = do
   --goodFile <- return (finished $ lines solutionFile) -- && (good_graph solutionFile)
   graph <- return $ read $ head $ lines solutionFile :: IO [[Int]]
   solutionsStr <- return $ trim $ lines solutionFile
-  putStrLn $ show graph
+  print graph
   -- here, need to write function converting a single solution into (binary list, number)->(digraph, number)->(number from graphToNumCycles, number)->(fst %) == (snd %)
   -- Solutions are of the form "[01010101001,6784765]"
   whichValid <- mapM (\str -> return $ strSolutionPipe str graph) solutionsStr :: IO [IO Bool]
@@ -98,14 +98,13 @@ checkMaxCySolution file = do
 --  putStrLn "[Begin failures]"
 --  (putStrLn . show) invalid
 --  putStrLn "[End failures]"
-  allGood <- return $ invalid == []
-  return $ allGood && (finished $ lines solutionFile)
+  allGood <- return $ null invalid
+  return $ allGood && finished (lines solutionFile)
   where
     trueFst x0 = do
       first <- fst x0
-      notted <- return $ not first
-      return notted
-    finished = \list ->(last list) == "FINISHED."
+      return $ not first
+    finished list = last list == "FINISHED."
     handler :: SomeException -> IO String
     handler _ = error "The results have disappeared under my nose."
 
@@ -115,14 +114,14 @@ cycleGraph n = sort2 $ [0,n-1] : [[i-1, i] | i <- [1..n-1]]
 
 -- | This function returns the complete graph with 'n' vertices
 completeGraph :: Int -> [[Int]] --Integral a => a -> [[a]]
-completeGraph n = sort2 $ [[a,b] | a <- [0..n-1], b <- [0..n-1], a<b]
+completeGraph n = sort2 [[a,b] | a <- [0..n-1], b <- [0..n-1], a<b]
 
 -- | This function returns the number of undirected cycles in (completeGraph n)
 -- The formula is divided by 'k' because with cycles of size k, there are k orientation of each cycle.
 -- cycles size k require three choices: n possibilities, n-1, n-2 etc.
 -- Sum[Product[(i - k + n)/2 k, {i, 1, k}], {k, 3, n}] (Undirected cycles, '/2' removed for directed cycles)
 completeGraphNumCy :: Int -> Int --Integral a => a -> a
-completeGraphNumCy n = if good then foldl (+) 0 [(div (foldl (*) 1 [i - k + n | i <- [1..k]]) k) | k <- [3..n]] else 10^12
+completeGraphNumCy n = if good then sum  [div (product [i - k + n | i <- [1..k]]) k | k <- [3..n]] else 10^12
   where
     good = n < 20
 
@@ -146,7 +145,7 @@ shuttleGraph n = sort2 $ [0,1] : [0,2] : [1,2] : [2*n-1, 2*n+1] : [2*n, 2*n+1] :
 
 -- | Returns the number of undirected cycles in (shuttleGraph n)
 shuttleGraphNumCy :: Int -> Int --Integral a => a -> a
-shuttleGraphNumCy n = (2 + 3*n + n^2) -- modified from div (2 + 3*n + n^2) 2, because undirected, not directed cycles found
+shuttleGraphNumCy n = 2 + 3*n + n^2 -- modified from div (2 + 3*n + n^2) 2, because undirected, not directed cycles found
 
 -- | This function returns the wheel graph of size n
 -- Constructed by making the spokes from '0', adding all but one of the outer cycle, then adding the final edge
@@ -170,13 +169,13 @@ wheelGraphNumCy n = 2*((n - 1)*(n - 2) + 1) -- 2*\x added because undirected, no
 resizeN :: Int -> Int -> Int
 resizeN n whichGraph = bringDown $ bringUpToMin (abs n)
   where
-    bringDown x = if lessThanMax x then x else 4 + (mod x 5) -- this gives a range of [4..8]
+    bringDown x = if lessThanMax x then x else 4 + mod x 5 -- this gives a range of [4..8]
     bringUpToMin x = if x < minsize then minsize else x
-    lessThanMax x = (maxNumCyForTest >= (numCy x)) && (maxNumEdgesForTest >= (numEd x))
+    lessThanMax x = (maxNumCyForTest >= numCy x) && (maxNumEdgesForTest >= numEd x)
     minsize = [3, 3, 4, 4] !! whichGraph
     graph = [cycleGraph, completeGraph, shuttleGraph, wheelGraph] !! whichGraph
-    numCy = [\_ -> 2, completeGraphNumCy, shuttleGraphNumCy, wheelGraphNumCy] !! whichGraph
-    numEd = [\m ->m, \m ->div (n*(n-1)) 2, \m ->8 + 3*m, \m ->2*(m+1)] !! whichGraph
+    numCy = [const  2, completeGraphNumCy, shuttleGraphNumCy, wheelGraphNumCy] !! whichGraph
+    numEd = [id, \m ->div (n*(n-1)) 2, \m ->8 + 3*m, \m ->2*(m+1)] !! whichGraph
 
 -- | Taken from <http://stackoverflow.com/questions/16108714/haskell-removing-duplicates-from-a-list>
 rmdups :: (Ord a) => [a] -> [a]
@@ -184,22 +183,22 @@ rmdups = map head . group . sort
 
 -- | This function takes a list and the two first elements (if they exist) from 'swaps' and swaps the elements at those indices, or those indices mod (the length of the list)
 listSwap :: [Int] -> [Int] -> [Int]
-listSwap list swaps = if ((length list) < 1) || ((length swaps) < 2) then list else map switch list
+listSwap list swaps = if (length list < 1) || (length swaps < 2) then list else map switch list
   where
     switch x
       | x == a1 = b1
       | x == b1 = a1
       | otherwise = x
     len = length list
-    a0 = swaps !! 0
+    a0 = head swaps
     b0 = swaps !! 1
     a1 = rerange a0
     b1 = rerange a1
-    rerange x = (mod (x-1) len) + 1 -- this moves x into the range [1..len]
+    rerange x = mod (x-1) len + 1 -- this moves x into the range [1..len]
 
 -- | This tests that 'listSwap' is its own inverse for lists without duplicates
 prop_listSwapReversible :: [Int] -> [Int] -> Property
-prop_listSwapReversible inlist seeds = property ( (listSwap (listSwap list (take 2 seeds)) (reverse (take 2 seeds))) == list )
+prop_listSwapReversible inlist seeds = property ( listSwap (listSwap list (take 2 seeds)) (reverse (take 2 seeds)) == list )
   where
     list = rmdups inlist
 
@@ -207,12 +206,12 @@ prop_listSwapReversible inlist seeds = property ( (listSwap (listSwap list (take
 -- Thus, it can take a list of seeds to permute the list in any fashion (as any permutation is the composition of some list of transpositions)
 permuteList :: [Int] -> [Int] -> [Int]
 permuteList list seeds
-    | ((length list) < 1) || ((length seeds) < 2) = list
+    | (length list < 1) || (length seeds < 2) = list
     | otherwise = permuteList (listSwap list (take 2 seeds)) (tail seeds)
 
 -- | This function uses a list of seeds to shuffle the vertex labels (indices) in a graph
 shuffleGraph :: [[Int]] -> [Int] -> [[Int]]
-shuffleGraph graph seeds = map (\e ->map (\v ->permuted !! v) e) graph
+shuffleGraph graph seeds = map (map (\v ->permuted !! v)) graph
   where
     permuted = permuteList [0..(maximum $ map maximum graph)] seeds
 
@@ -220,15 +219,15 @@ shuffleGraph graph seeds = map (\e ->map (\v ->permuted !! v) e) graph
 testNumCyShuffled :: [[Int]] -> Int -> [Int] -> Property
 testNumCyShuffled graph result seeds = monadicIO $ do
   resultFromC <- run $ graphToNumCycles graph False
-  resultKnown <- return result
+  let resultKnown = result
   assert (resultFromC == resultKnown)
 
 -- | This property takes a graph and a known result for the number of undirected cycles to test 'graphToNumCycles'
 testNumCy :: [[Int]] -> Int -> Property
 testNumCy graph result = monadicIO $ do
   resultFromC <- run $ graphToNumCycles graph False
-  resultKnown <- return result
-  assert (resultFromC == resultKnown)
+--  resultKnown <- return result
+  assert (resultFromC == result)
 
 -- | This property checks that a cycle graph of any valid size has two (directed) cycles
 prop_goodCycleGraphNumCy :: Int -> Property
@@ -239,7 +238,7 @@ prop_goodCycleGraphNumCy n = testNumCy graph 2
 
 -- | This property check that a cycle graph of any valid size and permutation of vertex labels has two (directed) cycles
 prop_goodCycleGraphNumCyShuffled :: Int -> [Int] -> Property
-prop_goodCycleGraphNumCyShuffled n seeds = testNumCyShuffled graph 2 seeds
+prop_goodCycleGraphNumCyShuffled n = testNumCyShuffled graph 2
   where
     graph = cycleGraph nGood
     nGood = resizeN n 0
@@ -254,7 +253,7 @@ prop_goodCompleteGraphNumCy n = testNumCy graph result
 
 -- | This property performs as 'prop_goodCycleGraphNumCyShuffled', except for complete graphs
 prop_goodCompleteGraphNumCyShuffled :: Int -> [Int] -> Property
-prop_goodCompleteGraphNumCyShuffled n seeds = testNumCyShuffled graph result seeds
+prop_goodCompleteGraphNumCyShuffled n = testNumCyShuffled graph result
   where
     graph  = completeGraph nGood
     result = completeGraphNumCy nGood
@@ -270,7 +269,7 @@ prop_goodShuttleGraphNumCy n = testNumCy graph result
 
 -- | This property performs as 'prop_goodCycleGraphNumCyShuffled', except for shuttle graphs
 prop_goodShuttleGraphNumCyShuffled :: Int -> [Int] -> Property
-prop_goodShuttleGraphNumCyShuffled n seeds = testNumCyShuffled graph result seeds
+prop_goodShuttleGraphNumCyShuffled n = testNumCyShuffled graph result
   where
     graph  = shuttleGraph nGood
     result = shuttleGraphNumCy nGood
@@ -286,7 +285,7 @@ prop_goodWheelGraphNumCy n = testNumCy graph result
 
 -- | This property performs as 'prop_goodCycleGraphNumCyShuffled', except for wheel graphs
 prop_goodWheelGraphNumCyShuffled :: Int -> [Int] -> Property
-prop_goodWheelGraphNumCyShuffled n seeds = testNumCyShuffled graph result seeds
+prop_goodWheelGraphNumCyShuffled n = testNumCyShuffled graph result
   where
     graph  = wheelGraph nGood
     result = wheelGraphNumCy nGood
@@ -296,17 +295,17 @@ prop_goodWheelGraphNumCyShuffled n seeds = testNumCyShuffled graph result seeds
 trimByLenMod :: [a] -> Int -> [a]
 trimByLenMod list moddedsize = take thisMany list
   where
-    thisMany = if len > 0 then (mod ((abs moddedsize)) len) + 1 else 0
+    thisMany = if len > 0 then mod (abs moddedsize) len + 1 else 0
     len = length list
 
 -- | This is the non-property form of 'testMaxCy'
 testMaxCy' :: [[Int]] -> Int -> Int -> IO Bool
 testMaxCy' graph splitbits seed = do
-  graphToMaxcyCode graph splitbits foldername
+  graphToMaxcyCode graph splitbits foldername "maxcy_testing"
   compileAllInDir foldername
   runAllInDir foldername
   files <- getDirectoryContents foldername :: IO [FilePath]
-  let txtFile = \file ->((last file) == 't') && ((last $ init file) == 'x') && ((last $ init $ init file) == 't') && ((last $ init $ init $ init file) == '.')
+  let txtFile file = (last file == 't') && (last (init file) == 'x') && (last (init $ init file) == 't') && (last (init $ init $ init file) == '.')
   text_files_untrimmed <- return $ filter txtFile files :: IO [FilePath]
   text_files <- return $ trimByLenMod text_files_untrimmed seed
   checked <- mapM checkMaxCySolution text_files :: IO [Bool]
@@ -316,14 +315,13 @@ testMaxCy' graph splitbits seed = do
 --  putStrLn "[Begin failures]"
 --  (putStrLn . show) invalid
 --  putStrLn "[End failures]"
-  allGood <- return $ invalid == []
+  allGood <- return $ null invalid
   when allGood (removeDirIfExists foldername)
   return allGood
   where
     trueFst x0 = do
       first <- fst x0
-      notted <- return $ not first
-      return notted
+      return $ not first
     foldername = "testMaxCy"
 
 -- | This is a general monadic tester for the 'graphToMaxCyCode' function, using 'graphToNumCycles' to check a random subset of its results
@@ -333,30 +331,30 @@ testMaxCy graph splitbits seed = monadicIO $ run $ testMaxCy' graph splitbits se
 -- | This value should be kept small; it will generate 2^maxsplitbits MaxCy code pieces,
 -- each of which will generate an exponential (by back of a napkin calculation) number of possible solutions,
 -- each of which will be checked by 'graphToNumCycles'.
-maxsplitbits = (5) + 1 :: Int
+maxsplitbits = 5 + 1 :: Int
 
 -- | This property checks the 'graphToMaxcyCode' function for complete graphs of reasonable and valid size
 prop_goodCompleteGraphMaxCy :: Int -> Int -> Int -> Property
-prop_goodCompleteGraphMaxCy n splitbits seed = testMaxCy graph splitbitsGood seed
+prop_goodCompleteGraphMaxCy n splitbits = testMaxCy graph splitbitsGood
   where
     graph         = completeGraph nGood
-    splitbitsGood = if ((abs splitbits) >= 0) && ((abs splitbits) < maxsplitbits) then (abs splitbits) else 0
+    splitbitsGood = if (abs splitbits >= 0) && (abs splitbits < maxsplitbits) then abs splitbits else 0
     nGood         = resizeN n 1
 
 -- | This property checks the 'graphToMaxcyCode' function for shuttle graphs of reasonable and valid size
 prop_goodShuttleGraphMaxCy :: Int -> Int -> Int -> Property
-prop_goodShuttleGraphMaxCy n splitbits seed = testMaxCy graph splitbitsGood seed
+prop_goodShuttleGraphMaxCy n splitbits = testMaxCy graph splitbitsGood
   where
     graph         = shuttleGraph nGood
-    splitbitsGood = if ((abs splitbits) >= 0) && ((abs splitbits) < maxsplitbits) then (abs splitbits) else 0
+    splitbitsGood = if (abs splitbits >= 0) && (abs splitbits < maxsplitbits) then abs splitbits else 0
     nGood         = resizeN n 2
 
 -- | This property checks the 'graphToMaxcyCode' function for wheel graphs of reasonable and valid size
 prop_goodWheelGraphMaxCy :: Int -> Int -> Int -> Property
-prop_goodWheelGraphMaxCy n splitbits seed = testMaxCy graph splitbitsGood seed
+prop_goodWheelGraphMaxCy n splitbits = testMaxCy graph splitbitsGood
   where
     graph         = wheelGraph nGood
-    splitbitsGood = if ((abs splitbits) >= 0) && ((abs splitbits) < maxsplitbits) then (abs splitbits) else 0
+    splitbitsGood = if (abs splitbits >= 0) && (abs splitbits < maxsplitbits) then abs splitbits else 0
     nGood         = resizeN n 3
 
 -- | Checks all properties with HSpec
@@ -402,38 +400,36 @@ main' = hspec $ do
       it "agrees in its solutions with graphToNumCycles" $ property $
         prop_goodWheelGraphMaxCy
 
-makeMaxcyForAll :: [([Char],[[Int]])] -> IO ()
-makeMaxcyForAll listofgraphs = do
-	strippedList <- return $ map snd listofgraphs
-	tupList <- return $ enum strippedList
-	mapM_ makeCode tupList
---	directoryContents <- getDirectoryContents "." :: IO [FilePath]
---	directoryContents2 <- filterM doesDirectoryExist directoryContents :: IO [FilePath]
---	graphDirs <- return $ filter isGraphDir directoryContents2 :: IO [FilePath]
---	mapM_ renameAllInDir graphDirs
-		where
---			renameAllInDir dir = do
---				dirContents <- getDirectoryContents dir
---				mapM_ (\name ->renameFile name ((drop 5 dir) ++ "_" ++ name)) dirContents
---			isGraphDir name = if (length name) > 8 then (if (take 8 name) == "graphNum" then True else False) else False
-			makeCode :: (Int, [[Int]]) -> IO [Char]
-			makeCode graphTup = graphToMaxcyCode graph splitbits name
-				where
-					graphNum = fst graphTup
-					graph = snd graphTup
-					numEdges = length graph
-					splitbits = if numEdges > 40 then numEdges - 40 else 0
-					name = "graphNum_" ++ (show graphNum)
+-- Add progress bar or at least printer for how many done/left
+-- Modify graphToMaxcyCode to allow for variable c filenames (longish)
 
+makeMaxcyForAll :: [(String,[[Int]])] -> IO ()
+makeMaxcyForAll listofgraphs = do
+  tupList <- return $ enum strippedList
+  mapM_ makeCode tupList
+  putStrLn "Done."
+    where
+      strippedList = map snd listofgraphs
+
+makeCode :: (Int, [[Int]]) -> IO String
+makeCode graphTup = do
+  print graphNum
+  graphToMaxcyCode graph splitbits foldername filename
+    where
+      graphNum = fst graphTup
+      graph = snd graphTup
+      splitbits = if length graph > 40 then length graph - 40 else 0
+      foldername = "graphNum_" ++ show (length graph)
+      filename = foldername
 
 main :: IO ()
-main = main'
---	mainDone <- main'
---	makeMaxcyForAll gList
-	
-	
-	
-	
-	
-	
-	
+main = do
+  mainDone <- main'
+  makeMaxcyForAll gList
+
+
+
+
+
+
+

@@ -4,11 +4,11 @@ import Data.Maybe
 
 -- | This function returns 'True' if the given graph has: a smallest vertex of index '0', sorted edges ([a,b] <-> a < b)
 goodGraphList :: Integral a => [[a]] -> Bool
-goodGraphList list = ((length (filter (\x -> x!!0 >= x!!1) list)) == 0) && ((minimum $ map minimum list) == 0)
+goodGraphList list = not (any (\x -> head x >= x!!1) list) && (minimum (map minimum list) == 0)
 
 -- | Given a list of the form [a,b..c,d] this function will return [b..c], trimming off the first and last elements
 trimList :: Integral a => [a] -> [a]
-trimList list = if (last list) == 0 then trimList (init list) else list
+trimList list = if last list == 0 then trimList (init list) else list
 
 -- | 'wrapAround' appends the first element to the list
 wrapAround :: [a] -> [a]
@@ -26,17 +26,17 @@ bool x = if x then 1 else 0
 
 -- | 'length'' outputs a general Integral type
 length' :: (Eq a, Integral b) => [a] -> b
-length' l = if l == [] then 0 else 1 + length' (tail l)
+length' l = if null l then 0 else 1 + length' (tail l)
 
 -- | This is an integral type allowing version of 'replicate'
 replicate' :: Integral b => a -> b -> [a]
-replicate' x t = map (\_ -> x) [1..t]
+replicate' x t = map (const x) [1..t]
 
 -- | 'padMod' pads the end of the list with the given padding so that the final length is 0 modulo the given modulus
 padMod :: Integral a => [a] -> a -> a -> [a]
-padMod list padding modulus = list ++ (replicate' padding extra)
+padMod list padding modulus = list ++ replicate' padding extra
                 where
-                    extra = mod (-1 * (length' list)) modulus
+                    extra = mod ((-1) * length' list) modulus
 
 -- | 'elemIndex''' is the same as 'elemIndex'', except it allows Maybe
 elemIndex'' :: (Eq a, Integral b) => a -> [a] -> b -> Maybe b
@@ -56,7 +56,7 @@ getElem (_:ls) p = getElem ls (p-1)
 
 -- | 'formatByDict' takes a string and a dictionary composed of [(key_string, result_string)] and returns the string with the appropriate key replaced (if any) ((only replaces one key))
 formatByDict :: String -> [(String, String)] -> String
-formatByDict string dictionary = if location == Nothing then string else snd $ getElem dictionary (fromJust location)
+formatByDict string dictionary = if isNothing location then string else snd $ getElem dictionary (fromJust location)
                         where
                             location = elemIndex'' string (map fst dictionary) 0
 
@@ -73,7 +73,7 @@ formatByDict string dictionary = if location == Nothing then string else snd $ g
 
 -- | For 'padStrLeft0s' s t, 's' is the string, 'l' is how long to make the final one
 padStrLeft0s :: (Integral a) => String -> a -> String
-padStrLeft0s s t = if (length' s) >= t then s else padStrLeft0s ('0':s) t
+padStrLeft0s s t = if length' s >= t then s else padStrLeft0s ('0':s) t
 
 -- | Number of decimal digits
 digLen10 :: (Num a, Integral a, Eq a) => a -> a
@@ -82,11 +82,11 @@ digLen10 n = 1 + digLen10 (div n 10)
 
 -- | Get first element of l that's not equal to 'a' (assuming no repetitons)
 otherElem :: Eq a => a -> [a] -> a
-otherElem a l = if (head l) == a then head $ tail l else head l
+otherElem a l = if head l == a then head $ tail l else head l
 
 -- | This is a custom implementation of 'unlines'. See source for details
-unlines' :: [[Char]] -> [Char]
-unlines' s = foldr (\a b -> a ++ "\n" ++ b) "" s
+unlines' :: [String] -> String
+unlines' = foldr (\a b -> a ++ "\n" ++ b) ""
 
 -- | This is a general typed version of 'trimList'
 trim :: [a] -> [a]
@@ -94,10 +94,10 @@ trim list = init $ tail list
 
 -- | This converts a haskell type (show List) to something to be used in the C code
 hStringToCList :: String -> String
-hStringToCList string = "[" ++ (trim string) ++ "]"
+hStringToCList string = "[" ++ trim string ++ "]"
 
 -- | This converts a list to a [(Element Index, Element)]
 enum :: [a] -> [(Int, a)]
-enum list = zip [0..] list
+enum = zip [0..]
 
 

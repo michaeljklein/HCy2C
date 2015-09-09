@@ -51,9 +51,7 @@ cabal-version:       >=1.10
 
 library
   -- Modules exported by the library.
-  exposed-modules:     Main, Cycles.Aux, Cycles.Findcy, Cycles.IO, Cycles.Maxcy
-	
-	-- , Data.GList
+  exposed-modules:     Main, Cycles.Aux, Cycles.Findcy, Cycles.IO, Cycles.Maxcy, Data.GList
   
   -- Modules included in this library but not exported.
   -- other-modules:       

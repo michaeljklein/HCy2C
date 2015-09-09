@@ -63,12 +63,12 @@
   (major1) == 3 && (major2) <  1 || \
   (major1) == 3 && (major2) == 1 && (minor) <= 3)
 
-/* tool cpphs-1.19 */
-#define TOOL_VERSION_cpphs "1.19"
+/* tool cpphs-1.19.3 */
+#define TOOL_VERSION_cpphs "1.19.3"
 #define MIN_TOOL_VERSION_cpphs(major1,major2,minor) (\
   (major1) <  1 || \
   (major1) == 1 && (major2) <  19 || \
-  (major1) == 1 && (major2) == 19 && (minor) <= 0)
+  (major1) == 1 && (major2) == 19 && (minor) <= 3)
 
 /* tool gcc-4.2.1 */
 #define TOOL_VERSION_gcc "4.2.1"
@@ -119,12 +119,12 @@
   (major1) == 0 && (major2) <  67 || \
   (major1) == 0 && (major2) == 67 && (minor) <= 0)
 
-/* tool hscolour-1.20 */
-#define TOOL_VERSION_hscolour "1.20"
+/* tool hscolour-1.22 */
+#define TOOL_VERSION_hscolour "1.22"
 #define MIN_TOOL_VERSION_hscolour(major1,major2,minor) (\
   (major1) <  1 || \
-  (major1) == 1 && (major2) <  20 || \
-  (major1) == 1 && (major2) == 20 && (minor) <= 0)
+  (major1) == 1 && (major2) <  22 || \
+  (major1) == 1 && (major2) == 22 && (minor) <= 0)
 
 /* tool pkg-config-0.28 */
 #define TOOL_VERSION_pkg_config "0.28"

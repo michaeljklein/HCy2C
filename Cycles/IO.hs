@@ -36,8 +36,8 @@ removeDirIfExists foldername = removeDirectoryRecursive foldername `catch` handl
 
 -- | This function only prints a line when its length is > 2.
 -- It's useful, because without it, many of these function print blank lines when there are no compile/run errors.
-putStrLongLn :: [Char] -> IO ()
-putStrLongLn string = when ((length string) > 2) (putStrLn string)
+putStrLongLn :: String -> IO ()
+putStrLongLn string = when (length string > 2) (putStrLn string)
 
 ------------------------------------------------------------------------------------------------------------------------------------------------------------
 ------------------------------------------------------------------------------------------------------------------------------------------------------------
@@ -70,16 +70,16 @@ graphToNumCycles graphlist directed = do
   putStrLongLn ("results: " ++ run_results)
   return numcy
 
--- | This function takes an output from the FindCy C code, performs a basic check ('is there a "done" mark?'), 
+-- | This function takes an output from the FindCy C code, performs a basic check ('is there a "done" mark?'),
 -- makes sure the output agrees with the expected graph, and reads the cycles into an [Int]
-processCycles :: [Char] -> [[Int]] -> [[Int]]
-processCycles cycles_string graph = ifElseError good ((\s ->(map read_cy $ trim $ lines s)) cycles_string)
+processCycles :: String -> [[Int]] -> [[Int]]
+processCycles cycles_string graph = ifElseError good ((map read_cy . trim . lines) cycles_string)
   where
     good             = (&&) finished good_graph
-    finished         = (\s ->eq_done $ last $ lines s) cycles_string
+    finished         = (eq_done . last . lines) cycles_string
     eq_done s        = "DONE." == s
-    good_graph       = (\s ->eq_graph graph $ head $ lines s) cycles_string
-    eq_graph graph s = (show graph) == s
+    good_graph       = (eq_graph graph . head . lines) cycles_string
+    eq_graph graph s = show graph == s
     read_cy cy       = trimList $ read cy
 
 -- | This function takes a graph and whether it is a digraph and returns a list of all directed cycles (somewhat slow, because it uses Haskell's read function)
@@ -105,38 +105,38 @@ graphToCycles graphlist directed = do
       handler _ = error "The results have disappeared under my nose."
 
 -- | This function takes a graph and automatically finds all cycles to output a string containing the C code to compute its maximally cyclic orientations
-graphToMaxcyCode :: [[Int]] -> Int -> [Char] -> IO [Char]
-graphToMaxcyCode graphlist splitbits name = do
+graphToMaxcyCode :: [[Int]] -> Int -> String -> String -> IO String
+graphToMaxcyCode graphlist splitbits foldername filename = do
   -- putStrLn "1"
   cycles <- graphToCycles graphlist False
   -- putStrLn "2"
   let endhere = splitbits
   -- putStrLn "3"
-  let startmap = \start -> (show start, (fst $ generateMaxCyCodeAtStart graphlist cycles endhere splitbits) start)
+  let startmap = \start -> (show start, (fst $ generateMaxCyCodeAtStart graphlist cycles endhere splitbits filename) start)
   --let startmap = \start ->liftM (\cy -> (show start, fst $ generateMaxCyCode graphlist cy start endhere splitbits)) cycles
   let codelist = map startmap  [0..(2^splitbits)-1] :: [(String, String)]
-  removeDirIfExists name
-  mkdir_results <- readProcess "mkdir" [name] []
+  removeDirIfExists foldername
+  mkdir_results <- readProcess "mkdir" [foldername] []
   -- putStrLn "4"
   --writeC (head codelist)
-  mapM_ writeC (map return codelist)
+  mapM_ (writeC . return) codelist
   return "Done."
     where
       -- writeC :: IO (String, String) ->IO (IO ())
-      writeC :: IO (String, String) -> IO [Char]
+      writeC :: IO (String, String) -> IO String
       writeC input = do
-        start <- input >>= return . fst -- :: [Char]
-        code <- input >>= return . snd -- :: [Char]
+        start <- liftM fst input --input >>= return . fst -- :: [Char]
+        code <- liftM snd input --input >>= return . snd -- :: [Char]
         -- startline <- return $ (\st ->"start:" ++ st) start
         -- putStrLn startline
-        let maxfilenum = (2^splitbits)
+        let maxfilenum = 2^splitbits
         -- putStrLn "5"
-        let outfilenamefun = \s ->name ++ "/runner_" ++ s ++ "_" ++ (show (maxfilenum - 1)) ++ ".c"
+        let outfilenamefun s = foldername ++ "/" ++ filename ++ s ++ "_" ++ show (maxfilenum - 1) ++ ".c"
         -- putStrLn "6"
         let outfilename = outfilenamefun start
         -- outfilenameline <- return $ (\ofn ->"7\n" ++ ofn) outfilename
         -- putStrLn outfilenameline
-        outfile <- (\filename ->openFile filename WriteMode) outfilename
+        outfile <- (`openFile` WriteMode) outfilename
         -- putStrLn "8"
         hPutStr outfile code
         -- putStrLn "9"
@@ -144,16 +144,16 @@ graphToMaxcyCode graphlist splitbits name = do
         return start
 
 -- | This function does exactly what it says, for '.c' files
-compileAllInDir :: [Char] -> IO ()
+compileAllInDir :: String -> IO ()
 compileAllInDir dir = do
   files <- getDirectoryContents dir
-  let cFile = \file ->((last file) == 'c') && ((last $ init file) == '.')
+  let cFile file = (last file == 'c') && (last (init file) == '.')
   code_files <- return $ filter cFile files
-  let compile file = readProcess "gcc" [dir ++ "/" ++ file, "-O3", "-o", "findcy_temp"] [] >>= putStrLn
+  let compile file = readProcess "gcc" [dir ++ "/" ++ file, "-O3", "-o", file ++ "_temp"] [] >>= putStrLn
   mapM_ compile code_files
 
 -- | This function runs all the files in a given directory, ascertained by those filenames that do not include a '.'
-runAllInDir :: [Char] -> IO ()
+runAllInDir :: String -> IO ()
 runAllInDir dir = do
   files <- getDirectoryContents dir
   exec_files <- return $ filter execFile files
@@ -161,6 +161,6 @@ runAllInDir dir = do
   mapM_ run exec_files
     where
       execFile name
-          | name == []         = True
-          | (last name) == '.' = False
-          | otherwise         = execFile $ init name
+          | null name       = True
+          | last name == '.' = False
+          | otherwise       = execFile $ init name
