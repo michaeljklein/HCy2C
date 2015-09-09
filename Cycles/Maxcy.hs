@@ -52,12 +52,13 @@ listToULL list = if (length list) > 64
 listToULLs :: Integral a => [a] -> [CULLong]
 listToULLs list = map listToULL (chunksOf 64 (padMod list 0 64))
 
--- | This adds "LLU" to the end of each number in a string, useful for generating C code with long long unsigned integers
-addULLs :: String -> String
-addULLs text = subRegex (mkRegex patc) (subRegex (mkRegex patb) text "\\1LLU}") "\\1LLU,"
-            where
-                patc = "([0-9]{3})(,)"
-                patb = "([0-9]{3})(})"
+-- This adds "LLU" to the end of each number in a string, useful for generating C code with long long unsigned integers
+-- However, it is SUPER slow, taking over 63% of the total time...regex's are just stupid slow for this kind of application.
+-- addULLs :: String -> String
+-- addULLs text = subRegex (mkRegex patc) (subRegex (mkRegex patb) text "\\1LLU}") "\\1LLU,"
+--             where
+--                 patc = "([0-9]{3})(,)"
+--                 patb = "([0-9]{3})(})"
 
 -- | 'listFirstAnd' replaces a!!0 with b!!0 .&. c!!0
 listFirstAnd :: [[CULLong]] -> [[CULLong]] -> [[CULLong]] -> [[CULLong]]
@@ -119,6 +120,11 @@ trimCycleList cyclelist = switchInTupLists refrontloaded 0 (aMostOftenElem refro
     trimmed = map (\cy ->if elem (True, 0) cy then tail cy else cy) frontloaded -- if a cycle has (forward,0) then remove it
     refrontloaded = frontLoadTupLists cyclelist
 
+addLLUs :: [[CULLong]] -> [Char]
+addLLUs list = (\s ->"[" ++ s ++ "]") $ init $ concat $ map addLLUsSingleDepth list
+	where
+		addLLUsSingleDepth u = (\s ->"[" ++ s ++ "],") $ init $ concat $ map (\y ->(show y) ++ "LLU,") u
+
 -- | This function is a version of 'generateMaxCyCodeAtStart' that is cross-compatible with the previous way of generating the C code to find the maximally cyclic orientations of a graph
 generateMaxCyCode :: [[Int]] -> [[Int]] -> Int -> Int -> Int -> (String, String)
 generateMaxCyCode graph cycles start end splitbits = ((fst starter) start, snd starter)
@@ -153,11 +159,11 @@ generateMaxCyCodeAtStart graph cycles end splitbits = (\start ->(unlines introli
                             "alist:" ++ (show alist),
                             "blist:"++(show blist),
                             "clist:",
-                            printULLs clist,
+                            --printULLs clist,
                             "dlist:",
-                            printULLs dlist,
-                            "aalist:",
-                            printULLs aalist ]
+                            --printULLs dlist,
+                            "aalist:"] -- ,
+                            --printULLs aalist ]
 
         cyclelistsUntrimmed = map sortBySnd (map (\c -> convIndivCycle graph c) cycles)
         cyclelists = trimCycleList cyclelistsUntrimmed
@@ -200,16 +206,16 @@ generateMaxCyCodeAtStart graph cycles end splitbits = (\start ->(unlines introli
         cstr = "char str[" ++ (show $ 10 + length graph) ++ "] = {" ++ (trim $ show $ replicate (10 + length graph) 0) ++ "};" --10 is not very magic, just count the chars in the output and leave a few to spare
 
         --":carray" static unsigned long long int C[3][1] = {{18446744073709551614LLU}, {18446744073709551614LLU}, {18446744073709551613LLU}};
-        carray = addULLs ("static uint_fast64_t C[" ++ (show $ length clist) ++ "][" ++ (show $ length $ head clist) ++ "] = " ++ (replace "]" "}" (replace "[" "{" (show clist))) ++ ";")
+        carray = ("static uint_fast64_t C[" ++ (show $ length clist) ++ "][" ++ (show $ length $ head clist) ++ "] = " ++ (replace "]" "}" (replace "[" "{" (addLLUs clist))) ++ ";")
 
         --":darray" static unsigned long long int D[3][1] = {{18446744073709551613LLU}, {18446744073709551613LLU}, {18446744073709551614LLU}};
-        darray = addULLs ("static uint_fast64_t D[" ++ (show $ length dlist) ++ "][" ++ (show $ length $ head dlist) ++ "] = " ++ (replace "]" "}" (replace "[" "{" (show dlist))) ++ ";")
+        darray = ("static uint_fast64_t D[" ++ (show $ length dlist) ++ "][" ++ (show $ length $ head dlist) ++ "] = " ++ (replace "]" "}" (replace "[" "{" (addLLUs dlist))) ++ ";")
 
         --":xarray" unsigned int X[3] = {0, 0, 0};
         xarray = "uint_fast8_t X[" ++ (show $ length graph) ++ "] = {" ++ (trim $ show $ replicate (length graph) 0) ++ "};"
 
         --":aarray" unsigned long long int A[3][1] = {{18446744073709551615LLU}, {18446744073709551615LLU}, {18446744073709551615LLU}};
-        aarray = addULLs ("uint_fast64_t A[" ++ (show $ length graph) ++ "][" ++ (show $ length $ head aalist) ++ "] = " ++ (replace "]" "}" (replace "[" "{" (show aalist))) ++ ";")
+        aarray = ("uint_fast64_t A[" ++ (show $ length graph) ++ "][" ++ (show $ length $ head aalist) ++ "] = " ++ (replace "]" "}" (replace "[" "{" (addLLUs aalist))) ++ ";")
 
         --":fops_true" A[i][0] = A[i-1][0] & C[i][0];
         fops_true  = unlines $ map (\j -> "        A[i][" ++ (show j) ++ "] = A[i-1][" ++ show j ++ "] & C[i][" ++ show j ++ "];")  [0..(length' $ init $ head aalist)]
