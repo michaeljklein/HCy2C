@@ -20,10 +20,11 @@ convIndivCycle elist vlist = loop elist tvlist []
                             tvlist = wrapAround $ trimList vlist
 
 
--- | aVarList is a[var][j], likewise for bVarList
+-- | aVarList is a[var][j]
 aVarList :: (Integral a, Bits a, Integral b, Bits b) => [[(Bool, a)]] -> a -> [b]
 aVarList cyclelists var = map (\x ->bool $ elem var x) (map (\y -> map (\x -> snd x) y) cyclelists)
 
+-- | bVarList is b[var][j]
 bVarList :: (Integral a, Bits a) => [[(Bool, a)]] -> a -> [a]
 bVarList cyclelists var = map gettf (map (\y -> (filter (\x -> (snd x) == var) y)) cyclelists)
                     where
@@ -32,10 +33,12 @@ bVarList cyclelists var = map gettf (map (\y -> (filter (\x -> (snd x) == var) y
                                         then 0
                                         else bool $ fst $ head $ list
 
+-- | This combines the 'aVarList' and 'bVarList' lists to give the combined cVarList
 -- | Note: (1-x) == ~x for x <- [0,1]
 cVarList :: (Integral a, Bits a) => [a] -> [a] -> [a]
 cVarList avlist bvlist = zipWith (\a b -> (1-a) .|. (1-b) ) avlist bvlist
 
+-- | This combines the 'aVarList' and 'bVarList' lists to give the combined dVarList
 dVarList :: (Integral a, Bits a) => [a] -> [a] -> [a]
 dVarList avlist bvlist = zipWith (\a b -> (1-a) .|.    b  ) avlist bvlist
 
@@ -49,6 +52,7 @@ listToULL list = if (length list) > 64
 listToULLs :: Integral a => [a] -> [CULLong]
 listToULLs list = map listToULL (chunksOf 64 (padMod list 0 64))
 
+-- | This adds "LLU" to the end of each number in a string, useful for generating C code with long long unsigned integers
 addULLs :: String -> String
 addULLs text = subRegex (mkRegex patc) (subRegex (mkRegex patb) text "\\1LLU}") "\\1LLU,"
             where
@@ -62,15 +66,19 @@ listFirstAnd a  [] _  = a
 listFirstAnd a  _  [] = a
 listFirstAnd a  b  c  = (zipWith (.&.) (head b) (head c)):(tail a)
 
+-- | This function maps snd to the second level of a list of lists
 sndMap2 :: [[(a,b)]] -> [[b]]
 sndMap2 lists = map (\l ->map snd l) lists
 
+-- | This function gives the largest element of a list greater than '0', or zero if all the elements are negative
 maxPositive :: (Ord a, Num a) => [a] -> a
 maxPositive list = foldl (\sofar next ->if sofar >= next then sofar else next) 0 list
 
+-- | This function gives the tuple in a list that has the greates positive snd element
 maxPositiveSnd :: (Num a, Ord b, Num b) => [(a,b)] -> (a,b)
 maxPositiveSnd list = foldl (\sofar next -> if (snd sofar) >= (snd next) then sofar else next) (-1,-1) list
 
+-- | This function gives the maxPositive for a list of lists
 listsMaxPositive :: (Ord a, Num a) => [[a]] -> a
 listsMaxPositive lists = maxPositive $ map maxPositive lists
 
@@ -111,20 +119,29 @@ trimCycleList cyclelist = switchInTupLists refrontloaded 0 (aMostOftenElem refro
     trimmed = map (\cy ->if elem (True, 0) cy then tail cy else cy) frontloaded -- if a cycle has (forward,0) then remove it
     refrontloaded = frontLoadTupLists cyclelist
 
+-- | This function is a version of 'generateMaxCyCodeAtStart' that is cross-compatible with the previous way of generating the C code to find the maximally cyclic orientations of a graph
 generateMaxCyCode :: [[Int]] -> [[Int]] -> Int -> Int -> Int -> (String, String)
 generateMaxCyCode graph cycles start end splitbits = ((fst starter) start, snd starter)
   where
     starter = (generateMaxCyCodeAtStart graph cycles end splitbits)
 
--- This function creates a function which may be mapped to a start value (to reduce overhead in splitting up the files) to produce C code. These C code files may be compiled to produce independent programs, able to be run in parallel or even on seperate machines with different architectures. 
+-- | This function creates a function which may be mapped to a start value (to reduce overhead in splitting up the files) to produce C code. These C code files may be compiled to produce independent programs, able to be run in parallel or even on seperate machines with different architectures. 
 --  Assuming variables are unlimited width for the purposes of explaining the logic: (1 is true, 0 is false) (i is the variable index, j is the digit index)
+--
 --	a[i][j] := is the ith edge in the jth cycle?
+--
 --	b[i][j] := is the ith edge backward in the jth cycle? (forward is [x,y] -> x<y )
+--
 --	c[i][j] := ~a[i][j] | ~b[i][j]
+--
 --	d[i][j] := ~a[i][j] |  b[i][j]
+--
 --	A[i][j] := (up to and inc. the ith var/edge) is it still possible that this digraph has the jth cycle?
+--
 --	A[0][j] := 1 if j < number of cycles
+--
 --	y[i][j] := is ith edge backward? (so 0 is forward, 1 is backward)
+--
 --	A[i][j] := A[i-1][j] & (~y[j] | c[i][j]) & (y[j] | d[i][j]
 generateMaxCyCodeAtStart :: [[Int]] -> [[Int]] -> Int -> Int -> (Int -> String, String)
 generateMaxCyCodeAtStart graph cycles end splitbits = (\start ->(unlines introlist) ++ ((starthere start) ++ (fout start)) ++ (unlines $ map (\s -> formatByDict s dict) codelist), printout)
@@ -391,6 +408,7 @@ generateMaxCyCodeAtStart graph cycles end splitbits = (\start ->(unlines introli
             "}",
             ""]
 
+-- | This generates the inline assembly for the popcount of four 64-bit unsigned integers
 makeAsmCounter4 :: Int -> [Char]
 makeAsmCounter4 j = unlines  ["    __asm__(",
                               "            \"popcnt %4, %4 \\n\\t\"",
@@ -409,6 +427,7 @@ makeAsmCounter4 j = unlines  ["    __asm__(",
     j2 = show (j+2)
     j3 = show (j+3)
 
+-- | This generates the inline assembly for the popcount of two 64-bit unsigned integers
 makeAsmCounter2 :: Int -> [Char]
 makeAsmCounter2 j = unlines  ["    __asm__(",
                               "            \"popcnt %2, %2  \\n\\t\"",
@@ -421,6 +440,7 @@ makeAsmCounter2 j = unlines  ["    __asm__(",
     j0 = show (j+0)
     j1 = show (j+1)
 
+-- | This generates the inline assembly for the popcount of one 64-bit unsigned integer
 makeAsmCounter1 :: Int -> [Char]
 makeAsmCounter1 j = unlines  ["    __asm__(",
                               "           \"popcnt %1, %1  \\n\\t\"",
@@ -430,6 +450,7 @@ makeAsmCounter1 j = unlines  ["    __asm__(",
   where
     j0 = show (j+0)
 
+-- | This generates the inline assembly for the popcount of arbitrarily many 64-bit unsigned integers
 makeAsmCounterN :: Int -> [Char]
 makeAsmCounterN n = expand ([], 0, n)
     where
@@ -439,6 +460,7 @@ makeAsmCounterN n = expand ([], 0, n)
           | (max - at) >= 1 = expand (code ++ (makeAsmCounter1 at), at + 1, max)
           | otherwise      = code
 
+-- | This generates the C code for a function utilizing inline assembly to find the total popcount of a length 'n' uint64_t buffer
 makeAsmCounter n = unlines ["int counter (uint64_t * buf){",
                             "    uint64_t cnt[" ++ (show n) ++ "];",
                             unlines ["    cnt[" ++ (show i) ++ "] = 0;" | i <- [0..(n-1)]],
@@ -447,12 +469,15 @@ makeAsmCounter n = unlines ["int counter (uint64_t * buf){",
                             foldl (++) "" $ "    return cnt[0]" : [" + cnt[" ++ (show k) ++ "]" | k <- [1..(n-1)]] ++ [";"],
                             "}"]
 
+-- | This makes a CULLong into a more or less readable string for debugging
 listFromULL :: CULLong -> String
 listFromULL 0 = []
 listFromULL x = (listFromULL $ div x 2) ++ (show (x .&. 1))
 
+-- | This makes a [[CULLong]] into a more or less readable string for debugging
 printULLs :: [[CULLong]] -> String
 printULLs l = unlines $  map (\x -> show $ map listFromULL x) l
 
+-- | This sorts a list of tuples by the snd element
 sortBySnd :: Ord b => [(a,b)] -> [(a,b)]
 sortBySnd list = sortBy (\a b -> compare (snd a) (snd b)) list

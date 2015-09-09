@@ -2,7 +2,7 @@ module Cycles.Findcy where
 
 import Cycles.Aux
 
-
+-- | Given two edges and whether the graph is directed, this function gives whether they are adjacent
 edgeAdjacent :: [Int] -> [Int] -> Bool -> Bool
 edgeAdjacent e1 e2 directed = if directed
                                  then (e1 !! 1) == (e2 !! 0)
@@ -20,17 +20,21 @@ edgeAdjacent e1 e2 directed = if directed
     c = e2 !! 0
     d = e2 !! 1
 
+-- | Given an edge, graph and whether it is directed, this function returns the list of indices of edges adjacent to the given edge
 eadjpos :: [Int] -> [[Int]] -> Bool -> [Int]
 eadjpos e1 graph directed = map fst $ filter (\e2 -> edgeAdjacent e1 (snd e2) directed) (enum graph)
 
+-- | This is the maximum of a list two levels deep
 max2 :: [[Int]] -> Int
 max2 lists = maximum $ map maximum lists
 
+-- | This gives a list = [[Int]] such that (list !! i) !! j = the jth edge adjacent to the ith edge
 edgeAdjacencyLists :: [[Int]] -> Bool -> [[Int]]
 edgeAdjacencyLists graph directed = map (\ei -> eadjpos (graph!!ei) graph directed) [0..max_edge]
   where
     max_edge = length $ init graph
 
+-- | This is the analogous function to 'eadjpos', except for vertex adjacency instead of edge adjacency
 vadjpos :: Int -> [[Int]] -> Bool -> [Int]
 vadjpos v1 graph directed = if directed
                                then not_v1 $ has_v1_fst graph
@@ -40,6 +44,7 @@ vadjpos v1 graph directed = if directed
     has_v1_fst = filter (\e ->(head e) == v1)
     not_v1     = map (\e -> if (head e) == v1 then last e else head e)
 
+-- | This is the analogous function to 'edgeAdjacencyLists', except for vertex adjacency instead of edge adjacency
 vertexAdjacencyLists :: [[Int]] -> Bool -> [[Int]]
 vertexAdjacencyLists graph directed = map (\vi -> vadjpos vi graph directed) [0..max_vertex]
   where
@@ -63,9 +68,9 @@ vertexAdjacencyLists graph directed = map (\vi -> vadjpos vi graph directed) [0.
 --              4) The generated code is in C. Yeah, I said it. On the plus side, unless you're running this on very big graphs
 --                      \ (where it would take an obscene amount of time to finish), you shouldn't run into overflow issues.
 --
---      The biggest plus? This algorithm is stupid-fast. Last test I ran outputted ~1.5GB of cycles from ~2k strongly-connected graphs, |E|<=36  in under 30s.
+--      The biggest plus? This algorithm is stupid-fast. The last big test I ran outputted ~1.5GB of cycles from ~2k strongly-connected graphs, |E|<=36  in under 30s.
 --
--- graph (edgelist), cfilename, are assumed variables
+-- Note: graph (edgelist), cfilename, are assumed variables
 generateFindCyCode :: [[Int]] -> [Char] -> Bool -> Bool -> [Char]
 generateFindCyCode graph cfilename justCount directed = unlines $ map (\s -> formatByDict s dict) codelist
     where

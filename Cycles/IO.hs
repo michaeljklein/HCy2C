@@ -20,19 +20,24 @@ import System.IO
 import System.IO.Error ( isDoesNotExistError )
 import System.Process ( readProcess )
 
-
+-- | This function allows one to remove a file with included exception handling
 removeIfExists :: FilePath -> IO ()
 removeIfExists fileName = removeFile fileName `catch` handleExists
   where handleExists e
          | isDoesNotExistError e = return ()
          | otherwise = throwIO e
 
+-- | Like 'removeIfExists', this function allows one to remove a file with included exception handling
 removeDirIfExists :: FilePath -> IO ()
 removeDirIfExists foldername = removeDirectoryRecursive foldername `catch` handleExists
   where handleExists e
          | isDoesNotExistError e = return ()
          | otherwise = throwIO e
-		 
+
+-- | This function only prints a line when its length is > 2.
+-- It's useful, because without it, many of these function print blank lines when there are no compile/run errors.
+putStrLongLn :: [Char] -> IO ()
+putStrLongLn string = when ((length string) > 2) (putStrLn string)
 
 ------------------------------------------------------------------------------------------------------------------------------------------------------------
 ------------------------------------------------------------------------------------------------------------------------------------------------------------
@@ -42,6 +47,7 @@ removeDirIfExists foldername = removeDirectoryRecursive foldername `catch` handl
 ------------------------------------------------------------------------------------------------------------------------------------------------------------
 ------------------------------------------------------------------------------------------------------------------------------------------------------------
 
+-- | This allows one to easily use monadic values for if-then
 ifElseError :: Bool -> t -> t
 ifElseError bool thn = if bool then thn else error "Output file unfinished or unmatched to graph."
 
@@ -56,12 +62,16 @@ graphToNumCycles graphlist directed = do
   write <- hPutStr cfile code
   hClose cfile
   comp_results <- readProcess "gcc" ["countcy_temp.c", "-O3", "-o", "countcy_temp"] []
-  when ((length comp_results) > 1) (putStrLn comp_results)
+--  when ((length comp_results) > 1) (putStrLongLn comp_results)
+  putStrLongLn comp_results
   run_results <- readProcess "./countcy_temp" [] []
   let numcy = read run_results :: Int
-  when ((length run_results) > 12) (putStrLn ("results:" ++ run_results)) -- magic number 12 is one less than the shortest c error I found after little checking
+--  when ((length run_results) > 12) (putStrLn ("results:" ++ run_results)) -- magic number 12 is one less than the shortest c error I found after little checking
+  putStrLongLn ("results: " ++ run_results)
   return numcy
 
+-- | This function takes an output from the FindCy C code, performs a basic check ('is there a "done" mark?'), 
+-- makes sure the output agrees with the expected graph, and reads the cycles into an [Int]
 processCycles :: [Char] -> [[Int]] -> [[Int]]
 processCycles cycles_string graph = ifElseError good ((\s ->(map read_cy $ trim $ lines s)) cycles_string)
   where
@@ -72,7 +82,7 @@ processCycles cycles_string graph = ifElseError good ((\s ->(map read_cy $ trim 
     eq_graph graph s = (show graph) == s
     read_cy cy       = trimList $ read cy
 
--- | This function takes a graph and whether it is a digraph and returns a list of all directed cycles (somewhat slow, because it uses Haskell's read function).
+-- | This function takes a graph and whether it is a digraph and returns a list of all directed cycles (somewhat slow, because it uses Haskell's read function)
 graphToCycles :: [[Int]] -> Bool -> IO [[Int]]
 graphToCycles graphlist directed = do
   removeIfExists "findcy_temp.c"
@@ -84,9 +94,9 @@ graphToCycles graphlist directed = do
   write <- hPutStr cfile code
   hClose cfile
   comp_results <- readProcess "gcc" ["findcy_temp.c", "-O3", "-o", "findcy_temp"] []
-  putStrLn comp_results
+  putStrLongLn comp_results
   run_results <- readProcess "./findcy_temp" [] []
-  putStrLn run_results
+  putStrLongLn run_results
   cycles_str <- catch (readFile "findcy_temp.txt") handler
   let cycles = processCycles cycles_str graphlist
   return cycles
@@ -95,6 +105,7 @@ graphToCycles graphlist directed = do
       handler _ = error "The results have disappeared under my nose."
 
 -- | This function takes a graph and automatically finds all cycles to output a string containing the C code to compute its maximally cyclic orientations
+graphToMaxcyCode :: [[Int]] -> Int -> [Char] -> IO [Char]
 graphToMaxcyCode graphlist splitbits name = do
   -- putStrLn "1"
   cycles <- graphToCycles graphlist False
@@ -132,7 +143,7 @@ graphToMaxcyCode graphlist splitbits name = do
         hClose outfile
         return start
 
--- | This function does exactly what it says, for '.c' files.
+-- | This function does exactly what it says, for '.c' files
 compileAllInDir :: [Char] -> IO ()
 compileAllInDir dir = do
   files <- getDirectoryContents dir
@@ -141,6 +152,7 @@ compileAllInDir dir = do
   let compile file = readProcess "gcc" [dir ++ "/" ++ file, "-O3", "-o", "findcy_temp"] [] >>= putStrLn
   mapM_ compile code_files
 
+-- | This function runs all the files in a given directory, ascertained by those filenames that do not include a '.'
 runAllInDir :: [Char] -> IO ()
 runAllInDir dir = do
   files <- getDirectoryContents dir
