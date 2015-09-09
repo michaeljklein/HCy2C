@@ -5,8 +5,8 @@ import Cycles.Aux
 -- | Given two edges and whether the graph is directed, this function gives whether they are adjacent
 edgeAdjacent :: [Int] -> [Int] -> Bool -> Bool
 edgeAdjacent e1 e2 directed = if directed
-                                 then (e1 !! 1) == (e2 !! 0)
-                                 else overlapping && (not thesame)
+                                 then (e1 !! 1) == head e2
+                                 else overlapping && not thesame
   where
     -- (a,b) ; (c,d)
     thesame = (a == c) && (b == d)
@@ -41,8 +41,8 @@ vadjpos v1 graph directed = if directed
                                else not_v1 $ has_v1 graph
   where
     has_v1     = filter (\e ->elem v1 e)
-    has_v1_fst = filter (\e ->(head e) == v1)
-    not_v1     = map (\e -> if (head e) == v1 then last e else head e)
+    has_v1_fst = filter (\e ->head e == v1)
+    not_v1     = map (\e -> if head e == v1 then last e else head e)
 
 -- | This is the analogous function to 'edgeAdjacencyLists', except for vertex adjacency instead of edge adjacency
 vertexAdjacencyLists :: [[Int]] -> Bool -> [[Int]]
