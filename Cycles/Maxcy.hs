@@ -44,13 +44,18 @@ dVarList :: (Integral a, Bits a) => [a] -> [a] -> [a]
 dVarList = zipWith (\a b -> (1-a) .|.    b  )
 
 -- | 'listToULL' converts a length <= 64 list of 0,1 values into a single 'CULLong'
-listToULL :: Integral a => [a] -> CULLong
+-- listToULL :: Integral a => [a] -> CULLong
+-- listToULL list = if length list > 64
+--                     then error "You want to use listToULLs for this (You're using listToULL)."
+--                     else foldl' (.|.) 0 (zipWith (\x y -> if x == 0 then 0 else bit y) (padMod list 0 64) [0..])
+listToULL :: [Int] -> CULLong
 listToULL list = if length list > 64
                     then error "You want to use listToULLs for this (You're using listToULL)."
                     else foldl' (.|.) 0 (zipWith (\x y -> if x == 0 then 0 else bit y) (padMod list 0 64) [0..])
 
 -- | 'listToULLs' converts a list of length > 64 to a list of 'CULLong' values
-listToULLs :: Integral a => [a] -> [CULLong]
+-- listToULLs :: Integral a => [a] -> [CULLong]
+listToULLs :: [Int] -> [CULLong]
 listToULLs list = map listToULL (chunksOf 64 (padMod list 0 64))
 
 -- This adds "LLU" to the end of each number in a string, useful for generating C code with long long unsigned integers
@@ -169,8 +174,8 @@ generateMaxCyCodeAtStart graph cycles end splitbits filename = (\start ->unlines
         cyclelistsUntrimmed = map (sortBySnd . convIndivCycle graph) cycles
         cyclelists = trimCycleList cyclelistsUntrimmed
 
-        alist = map (aVarList cyclelists) [0..(-1 + length' graph)]
-        blist = map (bVarList cyclelists) [0..(-1 + length' graph)]
+        alist = map (aVarList cyclelists) [0..(-1 + length graph)]
+        blist = map (bVarList cyclelists) [0..(-1 + length graph)]
 
         clist   = map listToULLs (zipWith cVarList alist blist)
         dlist   = map listToULLs (zipWith dVarList alist blist)
@@ -195,7 +200,7 @@ generateMaxCyCodeAtStart graph cycles end splitbits filename = (\start ->unlines
          (":fputs",      fputs)]
 
         --":maxpos" static int maxpos = 2;
-        maxpos = "static uint_fast32_t maxpos = " ++ show (-1 + length' graph) ++ ";"
+        maxpos = "static uint_fast32_t maxpos = " ++ show (-1 + length graph) ++ ";"
 
         --":endhere" static unsigned int endhere = 0;
         endhere = "static uint_fast32_t endhere = " ++ show end ++ ";" -- log2(maximum_value + 1)
@@ -219,10 +224,10 @@ generateMaxCyCodeAtStart graph cycles end splitbits filename = (\start ->unlines
         aarray = "uint_fast64_t A[" ++ show (length graph) ++ "][" ++ show (length $ head aalist) ++ "] = " ++ replace "]" "}" (replace "[" "{" (addLLUs aalist)) ++ ";"
 
         --":fops_true" A[i][0] = A[i-1][0] & C[i][0];
-        fops_true  = unlines $ map (\j -> "        A[i][" ++ show j ++ "] = A[i-1][" ++ show j ++ "] & C[i][" ++ show j ++ "];")  [0..(length' $ init $ head aalist)]
+        fops_true  = unlines $ map (\j -> "        A[i][" ++ show j ++ "] = A[i-1][" ++ show j ++ "] & C[i][" ++ show j ++ "];")  [0..(length $ init $ head aalist)]
 
         --":fops_false"  A[i][0] = A[i-1][0] & D[i][0];
-        fops_false = unlines $ map (\j -> "        A[i][" ++ show j ++ "] = A[i-1][" ++ show j ++ "] & D[i][" ++ show j ++ "];")  [0..(length' $ init $ head aalist)]
+        fops_false = unlines $ map (\j -> "        A[i][" ++ show j ++ "] = A[i-1][" ++ show j ++ "] & D[i][" ++ show j ++ "];")  [0..(length $ init $ head aalist)]
 
         --sprintf(str, "[               ,%5d]\n", this);
         printouter_sprint = "    sprintf(str, \"[" ++ replicate (length graph) ' '  ++ ",%5d]\\n\", this);"

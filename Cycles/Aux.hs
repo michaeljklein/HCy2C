@@ -25,18 +25,26 @@ bool :: Integral a => Bool -> a
 bool x = if x then 1 else 0
 
 -- | 'length'' outputs a general Integral type
-length' :: (Eq a, Integral b) => [a] -> b
-length' l = if null l then 0 else 1 + length' (tail l)
+-- length' :: [a] -> Int
+-- length' = length
+-- length' :: (Eq a, Integral b) => [a] -> b
+-- length' l = if null l then 0 else 1 + length' (tail l)
 
 -- | This is an integral type allowing version of 'replicate'
 replicate' :: Integral b => a -> b -> [a]
 replicate' x t = map (const x) [1..t]
 
 -- | 'padMod' pads the end of the list with the given padding so that the final length is 0 modulo the given modulus
-padMod :: Integral a => [a] -> a -> a -> [a]
-padMod list padding modulus = list ++ replicate' padding extra
-                where
-                    extra = mod ((-1) * length' list) modulus
+-- padMod :: Integral a => [a] -> a -> a -> [a]
+-- padMod list padding modulus = list ++ replicate' padding extra
+--                 where
+--                     extra = mod ((-1) * length' list) modulus
+padMod :: [Int] -> Int -> Int -> [Int]
+padMod list padding modulus = list ++ replicate padding extra
+  where
+    extra = mod ((-1) * length list) modulus
+
+
 
 -- | 'elemIndex''' is the same as 'elemIndex'', except it allows Maybe
 elemIndex'' :: (Eq a, Integral b) => a -> [a] -> b -> Maybe b
@@ -72,8 +80,10 @@ formatByDict string dictionary = if isNothing location then string else snd $ ge
 --       zs = tail $ tail string
 
 -- | For 'padStrLeft0s' s t, 's' is the string, 'l' is how long to make the final one
-padStrLeft0s :: (Integral a) => String -> a -> String
-padStrLeft0s s t = if length' s >= t then s else padStrLeft0s ('0':s) t
+-- padStrLeft0s :: (Integral a) => String -> a -> String
+-- padStrLeft0s s t = if length' s >= t then s else padStrLeft0s ('0':s) t
+padStrLeft0s :: String -> Int -> String
+padStrLeft0s s t = if length s >= t then s else padStrLeft0s ('0':s) t
 
 -- | Number of decimal digits
 digLen10 :: (Num a, Integral a, Eq a) => a -> a

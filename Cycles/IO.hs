@@ -6,6 +6,7 @@ import Cycles.Maxcy
 
 import Control.Exception ( SomeException, throwIO, catch )
 import Control.Monad ( liftM, Monad((>>=), return), when, mapM_, mapM, filterM )
+import Data.Char (ord)
 import System.Directory ( removeFile, removeDirectoryRecursive, getDirectoryContents )
 import System.IO
     ( IO,
@@ -47,6 +48,27 @@ putStrLongLn string = when (length string > 2) (putStrLn string)
 ------------------------------------------------------------------------------------------------------------------------------------------------------------
 ------------------------------------------------------------------------------------------------------------------------------------------------------------
 
+
+
+-- | Note: the string is presumed to be in little endian order
+readInt :: String -> Int
+readInt str = sum $ zipWith (\s p ->(ord s - 48) * 10^p) str [0..]
+
+-- | Note: numStr is in little endian order
+readIntList' :: String -> String -> [Int]
+readIntList' str numStr
+        | str == "[]" = []
+        | null str = []
+        | str0 == ']' = [readInt numStr]
+        | str0 == '[' = readIntList' (tail str) numStr
+        | str0 == ',' = readInt numStr : readIntList' (tail str) ""
+        | otherwise   = readIntList' (tail str) (str0 : numStr)
+    where
+        str0 = head str
+
+readIntList :: String -> [Int]
+readIntList str = readIntList' str ""
+
 -- | This allows one to easily use monadic values for if-then
 ifElseError :: Bool -> t -> t
 ifElseError bool thn = if bool then thn else error "Output file unfinished or unmatched to graph."
@@ -80,7 +102,7 @@ processCycles cycles_string graph = ifElseError good ((map read_cy . trim . line
     eq_done s        = "DONE." == s
     good_graph       = (eq_graph graph . head . lines) cycles_string
     eq_graph graph s = show graph == s
-    read_cy cy       = trimList $ read cy
+    read_cy cy       = trimList $ readIntList cy --read cy
 
 -- | This function takes a graph and whether it is a digraph and returns a list of all directed cycles (somewhat slow, because it uses Haskell's read function)
 graphToCycles :: [[Int]] -> Bool -> IO [[Int]]

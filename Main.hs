@@ -5,7 +5,7 @@ import Cycles.Findcy
 import Cycles.IO
 import Cycles.Aux
 
-import Data.GList
+--import Data.GList
 
 import Control.Exception (catch, SomeException, throwIO)
 import Control.Monad
@@ -30,6 +30,16 @@ maxNumCyForTest = completeGraphNumCy 6
 
 -- | See 'maxNumCyForTest'
 maxNumEdgesForTest = 100
+
+-- | This tests the readInt function in Cycles.IO (notice the little endian interpretation)
+prop_readInt :: Int -> Property
+prop_readInt n = property $ (readInt . reverse . show . abs) n == abs n
+
+-- | This tests the readIntList function in Cycles.IO (similar to \s->read s :: [Int], but faster)
+prop_readIntList :: [Int] -> Property
+prop_readIntList list = property $ readIntList (show posList) == posList
+  where
+    posList = map abs list
 
 -- | This function sorts an [[Ord a]] on both levels (because FindCy and MaxCy both use ordered lists for undirected graphs)
 sort2 lists = sort $ map sort lists
@@ -220,8 +230,9 @@ shuffleGraph graph seeds = map (map (\v ->permuted !! v)) graph
     permuted = permuteList [0..(maximum $ map maximum graph)] seeds
 
 -- | This is a general monadic tester for the 'graphToNumCycles' function, using a known result for the number of cycles
-testNumCyShuffled :: [[Int]] -> Int -> [Int] -> Property
+--testNumCyShuffled :: [[Int]] -> Int -> [Int] -> Property
 testNumCyShuffled graph result seeds = monadicIO $ do
+  run $ putStrLn $ "graph: " ++ show graph ++ ";  seeds: " ++ show seeds
   resultFromC <- run $ graphToNumCycles graph False
   let resultKnown = result
   assert (resultFromC == resultKnown)
@@ -364,6 +375,14 @@ prop_goodWheelGraphMaxCy n splitbits = testMaxCy graph splitbitsGood
 -- | Checks all properties with HSpec
 main' :: IO ()
 main' = hspec $ do
+  describe "readInt" $ do
+    context "when used with a show Int" $ do
+      it "returns the Int" $ property $
+        prop_readInt
+  describe "readIntList" $ do
+    context "when used with a show [Int]" $ do
+      it "returns the [Int]" $ property $
+        prop_readIntList
   describe "listSwap" $ do
     context "when used with a pairs of [Int]'s" $ do
       it "is its own inverse" $ property $
@@ -372,18 +391,18 @@ main' = hspec $ do
     context "when used with a simple cycle" $ do
       it "has 2 cycles" $ property $
         prop_goodCycleGraphNumCy
-    -- context "when used with a simple cycle (shuffled)" $ do
-    --   it "has 2 cycles" $ property $
-    --     prop_goodCycleGraphNumCyShuffled
-    -- context "when used with complete graphs" $ do
-    --   it "has Sum[Product[(i - k + n)/k, {i, 1, k}], {k, 3, n}] cycles" $ property $
-    --     prop_goodCompleteGraphNumCy
-    -- context "when used with complete graphs (shuffled)" $ do
-    --   it "has Sum[Product[(i - k + n)/k, {i, 1, k}], {k, 3, n}] cycles" $ property $
-    --     prop_goodCompleteGraphNumCyShuffled
-    -- context "when used with shuttle graphs" $ do
-    --   it "has (2 + 3*n + n^2) cycles" $ property $
-    --     prop_goodShuttleGraphNumCy
+    context "when used with a simple cycle (shuffled)" $ do
+      it "has 2 cycles" $ property $
+        prop_goodCycleGraphNumCyShuffled
+    context "when used with complete graphs" $ do
+      it "has Sum[Product[(i - k + n)/k, {i, 1, k}], {k, 3, n}] cycles" $ property $
+        prop_goodCompleteGraphNumCy
+    context "when used with complete graphs (shuffled)" $ do
+      it "has Sum[Product[(i - k + n)/k, {i, 1, k}], {k, 3, n}] cycles" $ property $
+        prop_goodCompleteGraphNumCyShuffled
+    context "when used with shuttle graphs" $ do
+      it "has (2 + 3*n + n^2) cycles" $ property $
+        prop_goodShuttleGraphNumCy
     context "when used with shuttle graphs (shuffled)" $ do
       it "has (2 + 3*n + n^2) cycles" $ property $
         prop_goodShuttleGraphNumCyShuffled
@@ -393,16 +412,16 @@ main' = hspec $ do
     context "when used with wheel graphs (shuffled)" $ do
       it "has 2*((n-1)*(n-2) + 1) cycles" $ property $
         prop_goodWheelGraphNumCyShuffled
-  -- describe "graphToMaxCyCode" $ do
-    -- context "when used with complete graphs" $ do
-    --   it "agrees in its solutions with graphToNumCycles" $ property $
-    --     prop_goodCompleteGraphMaxCy
-    -- context "when used with shuttle graphs" $ do
-    --   it "agrees in its solutions with graphToNumCycles" $ property $
-    --     prop_goodShuttleGraphMaxCy
-    -- context "when used with wheel graphs" $ do
-    --   it "agrees in its solutions with graphToNumCycles" $ property $
-    --     prop_goodWheelGraphMaxCy
+  describe "graphToMaxCyCode" $ do
+    context "when used with complete graphs" $ do
+      it "agrees in its solutions with graphToNumCycles" $ property $
+        prop_goodCompleteGraphMaxCy
+    context "when used with shuttle graphs" $ do
+      it "agrees in its solutions with graphToNumCycles" $ property $
+        prop_goodShuttleGraphMaxCy
+    context "when used with wheel graphs" $ do
+      it "agrees in its solutions with graphToNumCycles" $ property $
+        prop_goodWheelGraphMaxCy
 
 makeMaxcyForAll :: [(String,[[Int]])] -> IO ()
 makeMaxcyForAll listofgraphs = do
@@ -419,14 +438,16 @@ makeCode graphTup = do
     where
       graphNum = fst graphTup
       graph = snd graphTup
-      splitbits = if length graph > 40 then length graph - 40 else 0
+      splitbits = if length graph > 31 then length graph - 31 else 0 -- 31 is size of largest "managable" maxcy c program (by experiment)
       foldername = "graphNum_" ++ show (length graph) ++ "_" ++ show graphNum
       filename = foldername
 
 main :: IO ()
-main = do
-  mainDone <- main'
-  makeMaxcyForAll gList
+main = main' --do
+--  mainDone <- main'
+--  makeMaxcyForAll gList
+
+-- 33+
 
 
 

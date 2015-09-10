@@ -166,7 +166,7 @@ generateFindCyCode graph cfilename justCount directed = unlines $ map (`formatBy
         init_file_write = "    FILE * outfile = fopen(\"" ++ outfilename ++ "\", \"w\");"
 
         -- :fwrite_graph  fwrite("[[0,1],[0,2],[0,3],[1,2],[3,1],[2,3]]\n",1,39,outfile);
-        fwrite_graph_write = "    fwrite(\"" ++ show graph ++ "\\n\", 1," ++ show (length' $ '0':show graph) ++ ",outfile);"
+        fwrite_graph_write = "    fwrite(\"" ++ show graph ++ "\\n\", 1," ++ show (length $ '0':show graph) ++ ",outfile);"
 
         -- :assign_fresh  fresh[0] = inplay[0]; fresh[1] = inplay[1]; fresh[2] = inplay[2]; fresh[3] = inplay[3];
         assign_fresh = "    " ++ concatMap (\i -> "fresh[" ++ show i ++ "] = inplay[" ++ show i ++ "]; ") [0..(glen - 1)]
