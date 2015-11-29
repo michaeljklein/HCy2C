@@ -1,0 +1,66 @@
+	Sun Sep 13 19:54 2015 Time and Allocation Profiling Report  (Final)
+
+	   Main +RTS -p -RTS
+
+	total time  =      226.12 secs   (226121 ticks @ 1000 us, 1 processor)
+	total alloc = 312,298,575,568 bytes  (excludes profiling overheads)
+
+COST CENTRE                    MODULE      %time %alloc
+
+cutAfterComma                  Cycles.Reap  63.3   79.7
+parseSolution                  Cycles.Reap  11.0    5.6
+trimSpaces                     Cycles.Reap   6.2    7.1
+trimByteStringResult.solutions Cycles.Reap   6.2    1.2
+trimByteStringResult.rlines    Cycles.Reap   5.3    3.9
+trimSpaces.\                   Cycles.Reap   2.0    0.0
+trimByteStringResult.filtered  Cycles.Reap   2.0    0.0
+trimByteStringResult.finished  Cycles.Reap   1.4    0.0
+trimResult                     Cycles.Reap   0.5    1.9
+
+
+                                                                                 individual     inherited
+COST CENTRE                            MODULE                  no.     entries  %time %alloc   %time %alloc
+
+MAIN                                   MAIN                    114           0    0.0    0.0   100.0  100.0
+ main                                  Main                    240           0    0.0    0.0     0.0    0.0
+  trimAllResults                       Cycles.Reap             241           0    0.0    0.0     0.0    0.0
+   trimResult                          Cycles.Reap             242           0    0.0    0.0     0.0    0.0
+ CAF                                   Main                    227           0    0.0    0.0    99.9  100.0
+  main                                 Main                    228           1    0.0    0.0    99.9  100.0
+   trimAllResults                      Cycles.Reap             229           1    0.0    0.0    99.9  100.0
+    trimResult                         Cycles.Reap             234        1623    0.5    1.9    99.9  100.0
+     removeIfExists                    Cycles.IO               239        1622    0.2    0.0     0.2    0.0
+     trimByteStringResult              Cycles.Reap             236        1622    0.1    0.0    99.2   98.1
+      trimByteStringResult.best        Cycles.Reap             253          74    0.1    0.0     0.3    0.0
+       parseSolution                   Cycles.Reap             254          74    0.3    0.0     0.3    0.0
+        cutAfterComma                  Cycles.Reap             257        2592    0.0    0.0     0.0    0.0
+        trimSpaces                     Cycles.Reap             256          74    0.0    0.0     0.0    0.0
+         trimSpaces.\                  Cycles.Reap             258         370    0.0    0.0     0.0    0.0
+        justThat                       Cycles.Reap             255          74    0.0    0.0     0.0    0.0
+      trimByteStringResult.solutions   Cycles.Reap             246          74    6.2    1.2     6.2    1.2
+      trimByteStringResult.filtered    Cycles.Reap             245          74    2.0    0.0    85.9   93.0
+       trimByteStringResult.filtered.\ Cycles.Reap             247    68866667    1.0    0.5    83.9   93.0
+        parseSolution                  Cycles.Reap             248    68866667   10.8    5.6    82.9   92.4
+         cutAfterComma                 Cycles.Reap             251  2410333891   63.3   79.7    63.3   79.7
+         trimSpaces                    Cycles.Reap             250    68866667    6.2    7.1     8.2    7.1
+          trimSpaces.\                 Cycles.Reap             252   344333335    2.0    0.0     2.0    0.0
+         justThat                      Cycles.Reap             249    68866667    0.6    0.0     0.6    0.0
+      trimByteStringResult.graph       Cycles.Reap             244          74    0.0    0.0     0.0    0.0
+      trimNulls                        Cycles.Reap             243          74    0.0    0.0     0.0    0.0
+       trimNulls.\                     Cycles.Reap             259      150743    0.0    0.0     0.0    0.0
+      trimByteStringResult.rlines      Cycles.Reap             238        1622    5.3    3.9     5.3    3.9
+      trimByteStringResult.finished    Cycles.Reap             237        1622    1.4    0.0     1.4    0.0
+     trimResult.tempFileName           Cycles.Reap             235        1622    0.0    0.0     0.0    0.0
+    trimAllResults.resultFiles         Cycles.Reap             230           1    0.0    0.0     0.0    0.0
+     trimAllResults.isresult           Cycles.Reap             231        1671    0.0    0.0     0.0    0.0
+      trimAllResults.istxt             Cycles.Reap             233        1650    0.0    0.0     0.0    0.0
+      trimAllResults.isgraph           Cycles.Reap             232        1671    0.0    0.0     0.0    0.0
+ CAF                                   Data.ByteString.Char8   183           0    0.0    0.0     0.0    0.0
+ CAF                                   GHC.Conc.Signal         170           0    0.0    0.0     0.0    0.0
+ CAF                                   GHC.Conc.Sync           169           0    0.1    0.0     0.1    0.0
+ CAF                                   GHC.IO.Encoding         161           0    0.0    0.0     0.0    0.0
+ CAF                                   GHC.IO.Encoding.Iconv   159           0    0.0    0.0     0.0    0.0
+ CAF                                   GHC.IO.Exception        155           0    0.0    0.0     0.0    0.0
+ CAF                                   GHC.IO.FD               154           0    0.0    0.0     0.0    0.0
+ CAF                                   GHC.IO.Handle.FD        152           0    0.0    0.0     0.0    0.0
+ CAF                                   GHC.IO.Handle.Text      150           0    0.0    0.0     0.0    0.0

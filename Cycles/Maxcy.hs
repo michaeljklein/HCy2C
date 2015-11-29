@@ -158,6 +158,9 @@ generateMaxCyCode graph cycles start end splitbits name = (fst starter start, sn
 generateMaxCyCodeAtStart :: [[Int]] -> [[Int]] -> Int -> Int -> String -> (Int -> String, String)
 generateMaxCyCodeAtStart graph cycles end splitbits filename = (\start ->unlines introlist ++ (starthere start ++ fout start) ++ unlines (map (`formatByDict` dict) codelist), printout)
     where
+        numedges = length graph
+        maxedges = numedges - 1
+
         twotothesplitbits = 2^splitbits
         printout = unlines ["graph:" ++ show graph,
                             "cycles:" ++ show cycles,
@@ -200,7 +203,7 @@ generateMaxCyCodeAtStart graph cycles end splitbits filename = (\start ->unlines
          (":fputs",      fputs)]
 
         --":maxpos" static int maxpos = 2;
-        maxpos = "static uint_fast32_t maxpos = " ++ show (-1 + length graph) ++ ";"
+        maxpos = "static uint_fast32_t maxpos = " ++ show maxedges ++ ";"
 
         --":endhere" static unsigned int endhere = 0;
         endhere = "static uint_fast32_t endhere = " ++ show end ++ ";" -- log2(maximum_value + 1)
@@ -209,7 +212,7 @@ generateMaxCyCodeAtStart graph cycles end splitbits filename = (\start ->unlines
         starthere = (\startplace ->"uint_fast32_t starthere = " ++ show (2 * startplace) ++ ";\n") :: Int -> String --The '2*' is to bitshift past the fixed '0' at position '0'.
 
         --":cstr" char str[13] = {0,0,0,0,0,0,0,0,0,0,0,0,0};
-        cstr = "char str[" ++ show (10 + length graph) ++ "] = {" ++ trim (show $ replicate (10 + length graph) 0) ++ "};" --10 is not very magic, just count the chars in the output and leave a few to spare
+        cstr = "char str[" ++ show (10 + numedges) ++ "] = {" ++ trim (show $ replicate (10 + numedges) 0) ++ "};" --10 is not very magic, just count the chars in the output and leave a few to spare
 
         --":carray" static unsigned long long int C[3][1] = {{18446744073709551614LLU}, {18446744073709551614LLU}, {18446744073709551613LLU}};
         carray = "static uint_fast64_t C[" ++ show (length clist) ++ "][" ++ show (length $ head clist) ++ "] = " ++ replace "]" "}" (replace "[" "{" (addLLUs clist)) ++ ";"
@@ -232,7 +235,7 @@ generateMaxCyCodeAtStart graph cycles end splitbits filename = (\start ->unlines
         --sprintf(str, "[               ,%5d]\n", this);
         printouter_sprint = "    sprintf(str, \"[" ++ replicate (length graph) ' '  ++ ",%5d]\\n\", this);"
         -- str[1] = X[0] ^ 48;
-        printouter_xors = unlines ["    str[" ++ show i ++ "] = X[" ++ show (i-1) ++ "] ^ 48;" | i <- [1..(length graph)]]
+        printouter_xors = unlines ["    str[" ++ show i ++ "] = X[" ++ show (i-1) ++ "] ^ 48;" | i <- [1..numedges]]
         printouter = unlines ["void printout(){", printouter_sprint, printouter_xors, "}"]
 
         --":counter"    this += counter(A[maxpos][0]);

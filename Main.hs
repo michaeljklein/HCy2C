@@ -4,6 +4,7 @@ import Cycles.Maxcy
 import Cycles.Findcy
 import Cycles.IO
 import Cycles.Aux
+import Cycles.Reap
 
 --import Data.GList
 
@@ -65,15 +66,15 @@ solutionStrToTup str = (readBins bins, read num)
     bins = cutUntoChar (tail str) ','
     num  = reverse $ cutUntoChar (reverse $ trim str) ','
 
--- | This function takes a list of directions encoded as '1's and '0's ('0' is forward, i.e. [a,b] -> a<b) and a graph and returns a digraph
---orientGraph :: [Int] -> [[Int]] -> [[Int]] --'0' forward (a<b)
-orientGraph directions graph = if good then map (\tup ->if fst tup then snd tup else reverse $ snd tup) edgeTupList else error "bad graph or directions"
-  where
-    edgeTupList = zip (map (==0) directions) graph
-    good = sameLen && orderedEdges && orderedGraph
-    sameLen = length directions == length graph
-    orderedEdges = foldl (\prev next ->prev && (head next < last next)) True graph
-    orderedGraph = fst $ foldl (\prev next -> if fst prev then (snd prev < next, next) else (False, [0,0])) (True, [0,0]) graph
+-- -- | This function takes a list of directions encoded as '1's and '0's ('0' is forward, i.e. [a,b] -> a<b) and a graph and returns a digraph
+-- orientGraph :: (Ord a1, Num a1, Num a, Eq a) => [a] -> [[a1]] -> [[a1]] -- '0' forward (a<b)
+-- orientGraph directions graph = if good then map (\tup ->if fst tup then snd tup else reverse $ snd tup) edgeTupList else error "bad graph or directions"
+--   where
+--     edgeTupList = zip (map (==0) directions) graph
+--     good = sameLen && orderedEdges && orderedGraph
+--     sameLen = length directions == length graph
+--     orderedEdges = foldl (\prev next ->prev && (head next < last next)) True graph
+--     orderedGraph = fst $ foldl (\prev next -> if fst prev then (snd prev < next, next) else (False, [0,0])) (True, [0,0]) graph
 
 -- | This is the first level of the pipe 'strSolutionPipe'
 strSolutionPipe1 :: String -> [[Int]] -> (([Int], Int), [[Int]])
@@ -232,7 +233,7 @@ shuffleGraph graph seeds = map (map (\v ->permuted !! v)) graph
 -- | This is a general monadic tester for the 'graphToNumCycles' function, using a known result for the number of cycles
 --testNumCyShuffled :: [[Int]] -> Int -> [Int] -> Property
 testNumCyShuffled graph result seeds = monadicIO $ do
-  run $ putStrLn $ "graph: " ++ show graph ++ ";  seeds: " ++ show seeds
+  -- run $ putStrLn $ "graph: " ++ show graph ++ ";  seeds: " ++ show seeds
   resultFromC <- run $ graphToNumCycles graph False
   let resultKnown = result
   assert (resultFromC == resultKnown)
@@ -372,9 +373,38 @@ prop_goodWheelGraphMaxCy n splitbits = testMaxCy graph splitbitsGood
     splitbitsGood = if (abs splitbits >= 0) && (abs splitbits < maxsplitbits) then abs splitbits else 0
     nGood         = resizeN n 3
 
+
+makeMaxcyForAll :: [(String,[[Int]])] -> IO ()
+makeMaxcyForAll listofgraphs = do
+  let tupList = filter (\x ->length (snd x) > 31) $ enum strippedList -- strippedList
+  mapM_ makeCode tupList
+  putStrLn "Done."
+    where
+      strippedList = map snd listofgraphs
+      -- goodlist = filter (\l ->length l > 31) strippedList
+
+makeCode :: (Int, [[Int]]) -> IO String
+makeCode graphTup = do
+  print graphNum
+  graphToMaxcyCode graph splitbits foldername filename
+    where
+      graphNum = fst graphTup
+      graph = snd graphTup
+      splitbits = if length graph > 31 then length graph - 31 else 0 -- 31 is size of largest "managable" maxcy c program (by experiment)
+      foldername = "graphNum_" ++ show (length graph) ++ "_" ++ show graphNum
+      filename = foldername
+
 -- | Checks all properties with HSpec
 main' :: IO ()
 main' = hspec $ do
+  describe "splitAt" $ do
+    context "when used with arbitrary chars/strings" $ do
+      it "is is invertible" $ property $
+        prop_splitAtInvertible
+  describe "collectBy" $ do
+    context "when used with arbitrary inputs" $ do
+      it "is invertible" $ property $
+        prop_splitAtInvertible
   describe "readInt" $ do
     context "when used with a show Int" $ do
       it "returns the Int" $ property $
@@ -423,30 +453,51 @@ main' = hspec $ do
       it "agrees in its solutions with graphToNumCycles" $ property $
         prop_goodWheelGraphMaxCy
 
-makeMaxcyForAll :: [(String,[[Int]])] -> IO ()
-makeMaxcyForAll listofgraphs = do
-  let tupList = enum strippedList
-  mapM_ makeCode tupList
-  putStrLn "Done."
-    where
-      strippedList = map snd listofgraphs
+prop_splitAtInvertible :: Char -> String -> Property
+prop_splitAtInvertible c str = property $ (joined == filtered) || (length filtered < 1)
+  where
+    split = Cycles.Reap.splitAt c str
+    joined = concat split
+    filtered = filter (/= c) str
 
-makeCode :: (Int, [[Int]]) -> IO String
-makeCode graphTup = do
-  print graphNum
-  graphToMaxcyCode graph splitbits foldername filename
-    where
-      graphNum = fst graphTup
-      graph = snd graphTup
-      splitbits = if length graph > 31 then length graph - 31 else 0 -- 31 is size of largest "managable" maxcy c program (by experiment)
-      foldername = "graphNum_" ++ show (length graph) ++ "_" ++ show graphNum
-      filename = foldername
+prop_collectByInvertible f list = property $ sorted == remade
+  where
+    sorted = sort list
+    collected = collectBy f list
+    trues = fst collected
+    falses = snd collected
+    remade = sort $ trues ++ falses
+
+prop_collectByCollectsAll f list = property $ goodTrues && goodFalses
+  where
+    collected = collectBy f list
+    trues = fst collected
+    goodTrues = null [x | x <- trues, not (f x)]
+    falses = snd collected
+    goodFalses = null [x | x <- falses, f x]
+
+main'' = hspec $ do
+  describe "splitAt" $ do
+    context "when used with arbitrary chars/strings" $ do
+      it "is is invertible" $ property $
+        prop_splitAtInvertible
+  describe "collectBy" $ do
+    context "when used with arbitrary inputs" $ do
+      it "is invertible" $ property $
+        prop_splitAtInvertible
+  -- describe "collectBy (2)" $ do
+  --   context "when used as above" $ do
+  --     it "collects everything" $ property $
+  --       prop_collectByCollectsAll
 
 main :: IO ()
-main = main' --do
---  mainDone <- main'
---  makeMaxcyForAll gList
-
+main = main'
+--  main''
+-- reapAllResults "." "allout.txt"
+ --mainDone <- main'
+ --makeMaxcyForAll gList
+  -- trimAllResults "."
+--  trimResult "graphNum_33_1075_2_4_out.txt"
 -- 33+
 
 

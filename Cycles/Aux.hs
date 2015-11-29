@@ -110,4 +110,14 @@ hStringToCList string = "[" ++ trim string ++ "]"
 enum :: [a] -> [(Int, a)]
 enum = zip [0..]
 
+-- | This function takes a list of directions encoded as '1's and '0's ('0' is forward, i.e. [a,b] -> a<b) and a graph and returns a digraph
+orientGraph :: (Ord a1, Num a1, Num a, Eq a) => [a] -> [[a1]] -> [[a1]] -- '0' forward (a<b)
+orientGraph directions graph = if good then map (\tup ->if fst tup then snd tup else reverse $ snd tup) edgeTupList else error "bad graph or directions"
+  where
+    edgeTupList = zip (map (==0) directions) graph
+    good = sameLen && orderedEdges && orderedGraph
+    sameLen = length directions == length graph
+    orderedEdges = foldl (\prev next ->prev && (head next < last next)) True graph
+    orderedGraph = fst $ foldl (\prev next -> if fst prev then (snd prev < next, next) else (False, [0,0])) (True, [0,0]) graph
+
 

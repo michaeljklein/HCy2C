@@ -66,3 +66,7 @@
 -- Move checkMaxCySolutions to this file.
 -- Add function to go graph -> files -> check all
 -- Add option for splitbits in above function
+
+
+
+IMPORTANT: REPLACE OPTION TO APPEND NEW/BETTER RESULTS WITH CLOSE/OPEN FILE, ADD GRAPH, THEN WRITE. PREVENTS BLOWUP!!! (while you're at it, might as well add counter option for checking)

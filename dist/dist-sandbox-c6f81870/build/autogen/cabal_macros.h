@@ -21,6 +21,13 @@
   (major1) == 4 && (major2) <  7 || \
   (major1) == 4 && (major2) == 7 && (minor) <= 0)
 
+/* package bytestring-0.10.4.0 */
+#define VERSION_bytestring "0.10.4.0"
+#define MIN_VERSION_bytestring(major1,major2,minor) (\
+  (major1) <  0 || \
+  (major1) == 0 && (major2) <  10 || \
+  (major1) == 0 && (major2) == 10 && (minor) <= 4)
+
 /* package directory-1.2.1.0 */
 #define VERSION_directory "1.2.1.0"
 #define MIN_VERSION_directory(major1,major2,minor) (\

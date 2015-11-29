@@ -3,6 +3,8 @@ module Cycles.Findcy where
 import Cycles.Aux
 import Data.Function
 
+import Debug.Trace (traceShow)
+
 -- | Given two edges and whether the graph is directed, this function gives whether they are adjacent
 edgeAdjacent :: [Int] -> [Int] -> Bool -> Bool
 edgeAdjacent e1 e2 directed = if directed
@@ -27,7 +29,9 @@ eadjpos e1 graph directed = map fst $ filter (\e2 -> edgeAdjacent e1 (snd e2) di
 
 -- | This is the maximum of a list two levels deep
 max2 :: [[Int]] -> Int
-max2 lists = maximum $ map maximum lists
+--max2 lists = if (null lists) || (null $ map maximum lists) then error "findcy 30" else traceShow (lists) (maximum $ map maximum lists)
+
+max2 lists = maximum $ map maximum $ filter (\x -> not (null x)) lists
 
 -- | This gives a list = [[Int]] such that (list !! i) !! j = the jth edge adjacent to the ith edge
 edgeAdjacencyLists :: [[Int]] -> Bool -> [[Int]]

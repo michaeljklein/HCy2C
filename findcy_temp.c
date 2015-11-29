@@ -2,8 +2,8 @@
 unsigned long long count = 0;
 
 void print_cycle(FILE * outfile, unsigned int * this_current_path){
-    char lookup[7][1] = {"0","1","2","3","4","5","6"};
-    char str[16] = "[_,_,_,_,_,_,_]\n";
+    char lookup[6][1] = {"0","1","2","3","4","5"};
+    char str[14] = "[_,_,_,_,_,_]\n";
     str[1] = lookup[this_current_path[0]][0];
 
     str[3] = lookup[this_current_path[1]][0];
@@ -16,27 +16,24 @@ void print_cycle(FILE * outfile, unsigned int * this_current_path){
 
     str[11] = lookup[this_current_path[5]][0];
 
-    str[13] = lookup[this_current_path[6]][0];
 
-
-    fwrite(str, 1, 16, outfile);
+    fwrite(str, 1, 14, outfile);
 }
 
 int main(int argc, const char * argv[]) {
-    const unsigned int vo0[6] = {1,2,3,4,5,6};
-    const unsigned int vo1[3] = {0,2,6};
+    const unsigned int vo0[5] = {1,2,3,4,5};
+    const unsigned int vo1[3] = {0,2,5};
     const unsigned int vo2[3] = {0,1,3};
     const unsigned int vo3[3] = {0,2,4};
     const unsigned int vo4[3] = {0,3,5};
-    const unsigned int vo5[3] = {0,4,6};
-    const unsigned int vo6[3] = {0,1,5};
-    const unsigned int * vos[7] = {vo0,vo1,vo2,vo3,vo4,vo5,vo6};
-    const unsigned int vomax[7] = {6,3,3,3,3,3,3};
-    unsigned int current_path[7];
-    unsigned int adjacency_path[7];
+    const unsigned int vo5[3] = {0,1,4};
+    const unsigned int * vos[6] = {vo0,vo1,vo2,vo3,vo4,vo5};
+    const unsigned int vomax[6] = {5,3,3,3,3,3};
+    unsigned int current_path[6];
+    unsigned int adjacency_path[6];
     register unsigned int path_position = 0;
-    unsigned char fresh[7] = {1,1,1,1,1,1,1};
-    unsigned char inplay[7] = {1,1,1,1,1,1,1};
+    unsigned char fresh[6] = {1,1,1,1,1,1};
+    unsigned char inplay[6] = {1,1,1,1,1,1};
     register unsigned int start = 0;
     register unsigned int fresh_found;
     register unsigned int fresh_found_adjacency;
@@ -45,14 +42,14 @@ int main(int argc, const char * argv[]) {
     register unsigned int possible_fresh_adjacency;
     register unsigned int local_max;
     FILE * outfile = fopen("findcy_temp.txt", "w");
-    fwrite("[[0,1],[0,2],[0,3],[0,4],[0,5],[0,6],[1,2],[1,6],[2,3],[3,4],[4,5],[5,6]]\n", 1,74,outfile);
+    fwrite("[[0,1],[0,2],[0,3],[0,4],[0,5],[1,2],[1,5],[2,3],[3,4],[4,5]]\n", 1,62,outfile);
 
     starter_loop:
-    if (start != 5 ) {
+    if (start != 4 ) {
         inplay[start] = 0;
-    fresh[0] = inplay[0]; fresh[1] = inplay[1]; fresh[2] = inplay[2]; fresh[3] = inplay[3]; fresh[4] = inplay[4]; fresh[5] = inplay[5]; fresh[6] = inplay[6]; 
-    current_path[0] = start; current_path[1] = 0; current_path[2] = 0; current_path[3] = 0; current_path[4] = 0; current_path[5] = 0; current_path[6] = 0; 
-    adjacency_path[0] = 0; adjacency_path[1] = 0; adjacency_path[2] = 0; adjacency_path[3] = 0; adjacency_path[4] = 0; adjacency_path[5] = 0; adjacency_path[6] = 0; 
+    fresh[0] = inplay[0]; fresh[1] = inplay[1]; fresh[2] = inplay[2]; fresh[3] = inplay[3]; fresh[4] = inplay[4]; fresh[5] = inplay[5]; 
+    current_path[0] = start; current_path[1] = 0; current_path[2] = 0; current_path[3] = 0; current_path[4] = 0; current_path[5] = 0; 
+    adjacency_path[0] = 0; adjacency_path[1] = 0; adjacency_path[2] = 0; adjacency_path[3] = 0; adjacency_path[4] = 0; adjacency_path[5] = 0; 
 
         fresh_found = 0;
         fresh_found_adjacency = 0;

@@ -89,7 +89,7 @@ graphToNumCycles graphlist directed = do
   run_results <- readProcess "./countcy_temp" [] []
   let numcy = read run_results :: Int
 --  when ((length run_results) > 12) (putStrLn ("results:" ++ run_results)) -- magic number 12 is one less than the shortest c error I found after little checking
-  putStrLongLn ("results: " ++ run_results)
+--  putStrLongLn ("results: " ++ run_results)
   return numcy
 
 -- | This function takes an output from the FindCy C code, performs a basic check ('is there a "done" mark?'),
