@@ -4,7 +4,7 @@
 
 
 The primary goal of this project is to find an orientation of a given graph with the maximum possible number of cycles.
--See [this](https://en.wikipedia.org/wiki/Orientation_(graph_theory) Wikipedia article for some basics
+-See [this](https://en.wikipedia.org/wiki/Orientation_(graph_theory)) Wikipedia article for some basics
 
 The project is implemented in Haskell and C, with the main features tested on OSX (Macbook Pro, Late 2011) and the automatically generated C code tested on the Raspberry Pi 1, Model B (though there have been some tweaks since then, so it might take a little fiddling to get up and running).
 
