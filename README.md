@@ -12,4 +12,4 @@ See [TODO](https://github.com/michaeljklein/HCy2C/blob/master/TODO) for implemen
 
 The program flow goes: graph -> path finding, input graph specific C code -> compiled/optimized -> imported by Haskell -> pre-processed -> desired number of portable, independent, and parallel pieces in C code -> run in parallel or sequentially -> results reaped and consolidated (unimplemented/buggy) -> results output as orientations
 
-Besides batch processing of a list of graphs, most everything needed has been implemented.
+Besides batch processing of a list of graphs, most everything needed has been implemented. Look [here](http://michaeljklein.github.io/HCy2C/Main.html) for cursory test documentation.
