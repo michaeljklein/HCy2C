@@ -1,36 +1,15 @@
+# Hcy2C: A library for counting, finding, and maximizing the number of cycles in graphs
+
+[Project Haddock Documentation](http://michaeljklein.github.io/HCy2C/)
 
 
+The primary goal of this project is to find an orientation of a given graph with the maximum possible number of cycles.
+-See [this](https://en.wikipedia.org/wiki/Orientation_(graph_theory) Wikipedia article for some basics
 
-Depricated or comment code (for debugging or understanding intermediate steps in the writing of this program):
+The project is implemented in Haskell and C, with the main features tested on OSX (Macbook Pro, Late 2011) and the automatically generated C code tested on the Raspberry Pi 1, Model B (though there have been some tweaks since then, so it might take a little fiddling to get up and running).
 
--- int counter2 (uint64_t* buf){
---     uint64_t cnt[buflen];
---     for (int i = 0; i < (buflen); i++) {
---         cnt[i] = 0;
---     }
---     __asm__(
---             "popcnt %4, %4  \n\t"
---             "add %4, %0     \n\t"
---             "popcnt %5, %5  \n\t"
---             "add %5, %1     \n\t"
---             "popcnt %6, %6  \n\t"
---             "add %6, %2     \n\t"
---             "popcnt %7, %7  \n\t"
---             "add %7, %3     \n\t" // +r means input/output, r means intput
---             : "+r" (cnt[0]), "+r" (cnt[1]), "+r" (cnt[2]), "+r" (cnt[3])
---             : "r"  (buf[0]), "r"  (buf[1]), "r"  (buf[2]), "r"  (buf[3]));
---     __asm__(
---             "popcnt %2, %2  \n\t"
---             "add %2, %0     \n\t"
---             "popcnt %3, %3  \n\t"
---             "add %3, %1     \n\t"
---             : "+r" (cnt[4]), "+r" (cnt[5])
---             : "r"  (buf[4]), "r"  (buf[5]));
---     __asm__(
---             "popcnt %1, %1  \n\t"
---             "add %1, %0     \n\t"
---             : "+r" (cnt[6])
---             : "r"  (buf[6]));
+See [TODO](https://github.com/michaeljklein/HCy2C/blob/master/TODO) for implemented and planned features.
 
---     return cnt[0] + cnt[1] + cnt[2] + cnt[3] + cnt[4] + cnt[5] + cnt[6];
--- }
+The program flow goes: graph -> path finding, input graph specific C code -> compiled/optimized -> imported by Haskell -> pre-processed -> desired number of portable, independent, and parallel pieces in C code -> run in parallel or sequentially -> results reaped and consolidated (unimplemented/buggy) -> results output as orientations
+
+Besides batch processing of a list of graphs, most everything needed has been implemented.
